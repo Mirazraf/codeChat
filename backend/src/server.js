@@ -2,12 +2,15 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const connectDB = require('./config/db');
 const config = require('./config/config');
 const errorHandler = require('./middleware/errorMiddleware');
+const socketHandler = require('./socket/socketHandler');
 
 // Verify JWT_SECRET is loaded
 if (!process.env.JWT_SECRET) {
@@ -19,6 +22,22 @@ if (!process.env.JWT_SECRET) {
 connectDB();
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket.io setup with CORS
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+// Initialize socket handlers
+socketHandler(io);
+
+// Make io accessible to routes
+app.set('io', io);
 
 // Middleware
 app.use(express.json());
@@ -32,24 +51,27 @@ if (config.nodeEnv === 'development') {
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'CodeChat API is running...',
     env: config.nodeEnv,
-    jwtConfigured: !!process.env.JWT_SECRET
+    jwtConfigured: !!process.env.JWT_SECRET,
+    socketConnected: true,
   });
 });
 
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/rooms', require('./routes/roomRoutes'));
 
 // Error handler (must be last)
 app.use(errorHandler);
 
 const PORT = config.port;
 
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
   console.log(`✅ JWT Secret configured: ${!!process.env.JWT_SECRET}`);
+  console.log(`✅ Socket.io initialized`);
 });
 
 // Handle unhandled promise rejections
