@@ -4,11 +4,13 @@ import useAuthStore from '../../store/useAuthStore';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { Users, Settings, ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 
-const ChatWindow = () => {
-  const { currentRoom, messages, typingUsers, leaveRoom } = useChatStore();
+const ChatWindow = ({ replyingTo, onCancelReply }) => {
+  const { currentRoom, typingUsers, leaveRoom } = useChatStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const [localReplyingTo, setLocalReplyingTo] = useState(null);
 
   const handleBack = async () => {
     await leaveRoom(user._id);
@@ -19,7 +21,6 @@ const ChatWindow = () => {
       {/* Chat Header */}
       <div className="h-16 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
         <div className="flex items-center space-x-3 min-w-0">
-          {/* Back button for mobile */}
           <button
             onClick={handleBack}
             className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
@@ -47,8 +48,8 @@ const ChatWindow = () => {
         </div>
       </div>
 
-      {/* Messages Area */}
-      <MessageList messages={messages} />
+      {/* Messages Area - Pass setReplyingTo callback */}
+      <MessageList onSetReplyingTo={setLocalReplyingTo} />
 
       {/* Typing Indicator */}
       {typingUsers.length > 0 && (
@@ -60,7 +61,10 @@ const ChatWindow = () => {
 
       {/* Message Input */}
       <div className="flex-shrink-0">
-        <MessageInput />
+        <MessageInput 
+          replyingTo={localReplyingTo} 
+          onCancelReply={() => setLocalReplyingTo(null)} 
+        />
       </div>
     </div>
   );

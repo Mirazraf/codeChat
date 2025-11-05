@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Code, Smile, Paperclip, X, Loader, Image as ImageIcon } from 'lucide-react';
+import { Send, Code, Smile, Paperclip, X, Loader } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import EmojiPicker from 'emoji-picker-react';
 import useChatStore from '../../store/useChatStore';
@@ -7,16 +7,17 @@ import useAuthStore from '../../store/useAuthStore';
 import useThemeStore from '../../store/useThemeStore';
 import socketService from '../../services/socketService';
 import fileService from '../../services/fileService';
+import ReplyPreview from './ReplyPreview';
 import toast from 'react-hot-toast';
 
-const MessageInput = () => {
+const MessageInput = ({ replyingTo, onCancelReply }) => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('text');
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState('javascript');
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState([]); // Changed to array for multiple files
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   
   const inputRef = useRef(null);
@@ -30,7 +31,7 @@ const MessageInput = () => {
   const { theme } = useThemeStore();
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-  const MAX_FILES = 5; // Maximum files per upload
+  const MAX_FILES = 5;
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -107,7 +108,6 @@ const MessageInput = () => {
   };
 
   const validateFile = (file) => {
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return {
         valid: false,
@@ -115,7 +115,6 @@ const MessageInput = () => {
       };
     }
 
-    // Check file type
     const allowedTypes = [
       'image/jpeg',
       'image/jpg',
@@ -141,7 +140,6 @@ const MessageInput = () => {
   const handleFilesSelection = (files) => {
     const fileArray = Array.from(files);
     
-    // Check total number of files
     if (selectedFiles.length + fileArray.length > MAX_FILES) {
       toast.error(`You can only upload ${MAX_FILES} files at a time. Currently selected: ${selectedFiles.length}`);
       return;
@@ -153,7 +151,6 @@ const MessageInput = () => {
     fileArray.forEach(file => {
       const validation = validateFile(file);
       if (validation.valid) {
-        // Create preview for images
         if (file.type.startsWith('image/')) {
           const reader = new FileReader();
           reader.onloadend = () => {
@@ -169,19 +166,16 @@ const MessageInput = () => {
       }
     });
 
-    // Add non-image files immediately
     if (validFiles.length > 0) {
       setSelectedFiles(prev => [...prev, ...validFiles]);
     }
 
-    // Show errors
     if (errors.length > 0) {
       errors.forEach(error => {
         toast.error(error, { duration: 5000 });
       });
     }
 
-    // Show success for valid files
     if (validFiles.length > 0 || fileArray.some(f => f.type.startsWith('image/'))) {
       const validCount = validFiles.length + fileArray.filter(f => f.type.startsWith('image/')).length;
       if (validCount > 0) {
@@ -228,12 +222,14 @@ const MessageInput = () => {
       content: message.trim(),
       type: messageType,
       codeLanguage: messageType === 'code' ? codeLanguage : undefined,
+      replyTo: replyingTo?._id || null, // Add reply reference
     });
 
     setMessage('');
     setMessageType('text');
     setShowCodeInput(false);
     setShowEmojiPicker(false);
+    onCancelReply?.(); // Clear reply
     
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -253,33 +249,30 @@ const MessageInput = () => {
     const loadingToast = toast.loading(`Uploading ${totalFiles} file(s)...`);
 
     try {
-      // Upload files sequentially to show progress
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         
         try {
-          // Upload file to Cloudinary
           const uploadResult = await fileService.uploadFile(file);
           const fileData = uploadResult.data;
           const isImage = file.type.startsWith('image/');
 
-          // Send file message via socket
           sendMessage({
             roomId: currentRoom._id,
             userId: user._id,
-            content: i === 0 ? message.trim() : '', // Only add caption to first file
+            content: i === 0 ? message.trim() : '',
             type: isImage ? 'image' : 'file',
             fileUrl: fileData.url,
             fileName: fileData.fileName,
             fileSize: fileData.fileSize,
             fileType: fileData.fileType,
+            replyTo: replyingTo?._id || null, // Add reply reference for files too
           });
 
           uploadedCount++;
           const progress = Math.round((uploadedCount / totalFiles) * 100);
           setUploadProgress(progress);
           
-          // Update toast
           toast.loading(`Uploading... ${uploadedCount}/${totalFiles}`, { id: loadingToast });
         } catch (error) {
           console.error(`Failed to upload ${file.name}:`, error);
@@ -287,9 +280,9 @@ const MessageInput = () => {
         }
       }
 
-      // Clear everything
       setMessage('');
       setSelectedFiles([]);
+      onCancelReply?.(); // Clear reply after upload
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -334,6 +327,11 @@ const MessageInput = () => {
 
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 relative">
+      {/* Reply Preview */}
+      {replyingTo && (
+        <ReplyPreview replyingTo={replyingTo} onCancel={onCancelReply} />
+      )}
+
       {/* Emoji Picker Popup */}
       {showEmojiPicker && (
         <div 
@@ -363,7 +361,6 @@ const MessageInput = () => {
       {/* Files Preview with Progress Bar */}
       {selectedFiles.length > 0 && (
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
-          {/* Upload Progress Bar */}
           {uploadingFiles && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
@@ -380,7 +377,6 @@ const MessageInput = () => {
             </div>
           )}
 
-          {/* File Previews */}
           <div className="space-y-2">
             {selectedFiles.map((file, index) => (
               <div key={index} className="flex items-center space-x-3 bg-white dark:bg-gray-800 rounded-lg p-2">
@@ -416,7 +412,6 @@ const MessageInput = () => {
             ))}
           </div>
 
-          {/* File limit info */}
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {selectedFiles.length}/{MAX_FILES} files • Max {formatFileSize(MAX_FILE_SIZE)} per file
           </div>
@@ -450,9 +445,11 @@ const MessageInput = () => {
         </div>
       )}
 
-      {/* Input Area */}
+      {/* Rest of the input form remains the same as before... */}
+      {/* (Copy the rest from the previous MessageInput.jsx) */}
+      
       <form onSubmit={handleSubmit} className="p-3 sm:p-4">
-        {/* Action Buttons - Above input on mobile, left side on desktop */}
+        {/* Mobile action buttons */}
         <div className="flex items-center justify-center sm:justify-start space-x-2 mb-3 sm:mb-0 sm:hidden">
           <button
             type="button"
@@ -500,7 +497,7 @@ const MessageInput = () => {
         </div>
 
         <div className="flex items-end space-x-2">
-          {/* Left Actions - Only visible on desktop */}
+          {/* Desktop action buttons */}
           <div className="hidden sm:flex space-x-1">
             <button
               type="button"
@@ -547,7 +544,6 @@ const MessageInput = () => {
             </button>
           </div>
 
-          {/* Hidden file input - Multiple files */}
           <input
             ref={fileInputRef}
             type="file"
@@ -558,7 +554,6 @@ const MessageInput = () => {
             multiple
           />
 
-          {/* Text/Code Input */}
           <div className="flex-1">
             {showCodeInput ? (
               <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
@@ -591,7 +586,9 @@ const MessageInput = () => {
                 onKeyDown={handleKeyDown}
                 disabled={uploadingFiles}
                 placeholder={
-                  selectedFiles.length > 0 
+                  replyingTo 
+                    ? `Reply to ${replyingTo.sender?.username}...`
+                    : selectedFiles.length > 0 
                     ? "Add a caption (optional)..." 
                     : "Type a message or paste an image..."
                 }
@@ -602,7 +599,6 @@ const MessageInput = () => {
             )}
           </div>
 
-          {/* Send Button */}
           <button
             type="submit"
             disabled={(!message.trim() && selectedFiles.length === 0) || uploadingFiles}

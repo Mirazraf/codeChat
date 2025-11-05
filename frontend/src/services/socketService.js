@@ -16,7 +16,6 @@ class SocketService {
 
       this.socket.on('connect', () => {
         console.log('✅ Socket connected:', this.socket.id);
-        // Authenticate user
         this.socket.emit('authenticate', userId);
       });
 
@@ -59,6 +58,24 @@ class SocketService {
   onMessage(callback) {
     if (this.socket) {
       this.socket.on('message', callback);
+    }
+  }
+
+  onMessageReaction(callback) {
+    if (this.socket) {
+      this.socket.on('messageReaction', callback);
+    }
+  }
+
+  onMessageEdited(callback) {
+    if (this.socket) {
+      this.socket.on('messageEdited', callback);
+    }
+  }
+
+  onMessageDeleted(callback) {
+    if (this.socket) {
+      this.socket.on('messageDeleted', callback);
     }
   }
 

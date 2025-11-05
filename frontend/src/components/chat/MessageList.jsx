@@ -1,21 +1,76 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
 import CodeSnippet from './CodeSnippet';
 import FileMessage from './FileMessage';
+import MessageActions from './MessageActions';
+import MessageReactions from './MessageReactions';
+import ReplyDisplay from './ReplyDisplay';
+import EditMessageModal from './EditMessageModal';
+import toast from 'react-hot-toast';
 
 const MessageList = () => {
-  const { messages } = useChatStore();
+  const { messages, reactToMessage, editMessage, deleteMessage } = useChatStore();
   const { user } = useAuthStore();
   const messagesEndRef = useRef(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleReply = (message) => {
+    onSetReplyingTo?.(message);
+    // Scroll to input area
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
+
+  const handleReact = (messageId, emoji) => {
+    reactToMessage(messageId, emoji);
+  };
+
+  const handleEdit = (message) => {
+    setEditingMessage(message);
+  };
+
+  const handleSaveEdit = (messageId, newContent) => {
+    editMessage(messageId, newContent);
+    setEditingMessage(null);
+    toast.success('Message edited');
+  };
+
+  const handleDelete = (messageId, deleteType) => {
+    const confirmMessage = deleteType === 'forEveryone' 
+      ? 'Are you sure you want to unsend this message for everyone?' 
+      : 'Are you sure you want to delete this message for yourself?';
+    
+    if (window.confirm(confirmMessage)) {
+      deleteMessage(messageId, deleteType);
+      toast.success(
+        deleteType === 'forEveryone' 
+          ? 'Message unsent' 
+          : 'Message deleted'
+      );
+    }
+  };
+
+  const handleCopy = () => {
+    // Toast is already shown in MessageActions
+  };
+
   const renderMessageContent = (message, isOwnMessage) => {
+    // Deleted message
+    if (message.isDeletedForEveryone) {
+      return (
+        <div className="italic text-gray-500 dark:text-gray-400 text-sm">
+          🚫 This message was deleted
+        </div>
+      );
+    }
+
     // Code snippets
     if (message.type === 'code') {
       return (
@@ -31,7 +86,9 @@ const MessageList = () => {
       return (
         <>
           {message.content && (
-            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-2">
+            <p className={`whitespace-pre-wrap break-words mb-2 ${
+              isOwnMessage ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+            }`}>
               {message.content}
             </p>
           )}
@@ -59,76 +116,135 @@ const MessageList = () => {
 
     // Regular text message
     return (
-      <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
+      <p className={`whitespace-pre-wrap break-words ${
+        isOwnMessage ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+      }`}>
         {message.content}
       </p>
     );
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {messages.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-500 dark:text-gray-400">
-            No messages yet. Start the conversation!
-          </p>
-        </div>
-      ) : (
-        messages.map((message) => {
-          const isOwnMessage = message.sender?._id === user._id;
-          const isSystemMessage = message.type === 'system';
-          const isFileOrImage = message.type === 'file' || message.type === 'image';
+    <>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500 dark:text-gray-400">
+              No messages yet. Start the conversation!
+            </p>
+          </div>
+        ) : (
+          messages.map((message) => {
+            const isOwnMessage = message.sender?._id === user._id;
+            const isSystemMessage = message.type === 'system';
+            const isFileOrImage = message.type === 'file' || message.type === 'image';
+            const isDeleted = message.isDeletedForEveryone;
 
-          if (isSystemMessage) {
+            if (isSystemMessage) {
+              return (
+                <div key={message._id}>
+                  {renderMessageContent(message, false)}
+                </div>
+              );
+            }
+
             return (
-              <div key={message._id}>
-                {renderMessageContent(message, false)}
-              </div>
-            );
-          }
+              <div
+                key={message._id}
+                className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}
+              >
+                {/* Sender name (only for others' messages) */}
+                {!isOwnMessage && (
+                  <div className="mb-1 px-3">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {message.sender?.username || 'Unknown'}
+                    </span>
+                  </div>
+                )}
 
-          return (
-            <div
-              key={message._id}
-              className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}
-            >
-              {/* Sender name (only for others' messages) */}
-              {!isOwnMessage && (
-                <div className="mb-1 px-3">
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    {message.sender?.username || 'Unknown'}
+                {/* Message Actions - Shows on hover */}
+                <div className="relative group w-full flex justify-end">
+                  <div className={`flex items-start ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} space-x-2 max-w-[70%]`}>
+                    {/* Message bubble */}
+                    <div
+                      className={`relative ${
+                        isFileOrImage && !message.content
+                          ? '' // No background for standalone images
+                          : isOwnMessage
+                          ? 'bg-primary text-white rounded-2xl px-4 py-2'
+                          : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
+                      }`}
+                    >
+                      {/* Reply reference */}
+                      {message.replyTo && !isDeleted && (
+                        <ReplyDisplay replyTo={message.replyTo} isOwnMessage={isOwnMessage} />
+                      )}
+
+                      {/* Message content */}
+                      <div className={message.type === 'code' ? '' : ''}>
+                        {renderMessageContent(message, isOwnMessage)}
+                      </div>
+
+                      {/* Edited indicator */}
+                      {message.isEdited && !isDeleted && (
+                        <span className={`text-xs italic mt-1 block ${
+                          isOwnMessage ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          (edited)
+                        </span>
+                      )}
+
+                      {/* Reactions */}
+                      {message.reactions && message.reactions.length > 0 && (
+                        <div className={`${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                          <MessageReactions 
+                            reactions={message.reactions} 
+                            currentUserId={user._id}
+                            onReactionClick={(emoji) => handleReact(message._id, emoji)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Message Actions (hover to show) */}
+                    {!isDeleted && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MessageActions
+                          message={message}
+                          isOwnMessage={isOwnMessage}
+                          onReply={handleReply}
+                          onReact={handleReact}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onCopy={handleCopy}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timestamp - Outside bubble */}
+                <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {format(new Date(message.createdAt), 'HH:mm')}
                   </span>
                 </div>
-              )}
-
-              {/* Message bubble - Borderless for images */}
-              <div
-                className={`max-w-[70%] ${
-                  isFileOrImage && !message.content
-                    ? '' // No background/padding for standalone images
-                    : isOwnMessage
-                    ? 'bg-primary text-white rounded-2xl px-4 py-2'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
-                }`}
-              >
-                {/* Message content */}
-                <div className={message.type === 'code' ? '' : ''}>
-                  {renderMessageContent(message, isOwnMessage)}
-                </div>
               </div>
+            );
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
-              {/* Timestamp - Outside bubble */}
-              <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {format(new Date(message.createdAt), 'HH:mm')}
-                </span>
-              </div>
-            </div>
-          );
-        })
+      {/* Edit Message Modal */}
+      {editingMessage && (
+        <EditMessageModal
+          message={editingMessage}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditingMessage(null)}
+        />
       )}
-      <div ref={messagesEndRef} />
-    </div>
+    </>
   );
 };
 
