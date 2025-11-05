@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
+import { ArrowDown } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
 import socketService from '../../services/socketService';
@@ -11,22 +12,74 @@ const MessageList = () => {
   const { messages, updateMessageReactions, currentRoom } = useChatStore();
   const { user } = useAuthStore();
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const previousMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Scroll to bottom function
+  const scrollToBottom = (behavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  // Check if user is near bottom
+  const isNearBottom = () => {
+    if (!messagesContainerRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    return scrollHeight - scrollTop - clientHeight < 100; // Within 100px of bottom
+  };
+
+  // Handle scroll event
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+    
+    const nearBottom = isNearBottom();
+    setShowScrollButton(!nearBottom);
+    
+    // If user manually scrolled, mark as scrolling
+    if (!nearBottom) {
+      setIsUserScrolling(true);
+    } else {
+      setIsUserScrolling(false);
+    }
+  };
+
+  // Auto-scroll ONLY when:
+  // 1. New message arrives (messages.length changes)
+  // 2. User is already near the bottom
+  // 3. Room just changed
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const messageCountChanged = messages.length !== previousMessageCountRef.current;
+    previousMessageCountRef.current = messages.length;
+
+    // Only auto-scroll if:
+    // - New message arrived AND user is near bottom OR not manually scrolling
+    if (messageCountChanged) {
+      if (!isUserScrolling || isNearBottom()) {
+        scrollToBottom('smooth');
+      }
+    }
+  }, [messages.length, isUserScrolling]);
+
+  // Auto-scroll when room changes (initial load)
+  useEffect(() => {
+    if (currentRoom) {
+      setIsUserScrolling(false);
+      scrollToBottom('auto'); // Instant scroll on room change
+    }
+  }, [currentRoom?._id]);
 
   // Listen for reaction updates from socket
   useEffect(() => {
     const handleReactionUpdate = ({ messageId, reactions }) => {
       updateMessageReactions(messageId, reactions);
+      // DON'T auto-scroll on reactions
     };
 
     socketService.onReactionUpdate(handleReactionUpdate);
 
     return () => {
-      // Cleanup listener if needed (socket.io doesn't require explicit off in this pattern)
+      // Cleanup listener if needed
     };
   }, [updateMessageReactions]);
 
@@ -42,6 +95,12 @@ const MessageList = () => {
     if (currentRoom && user) {
       socketService.removeReaction(messageId, user._id, emoji, currentRoom._id);
     }
+  };
+
+  // Handle scroll to bottom button click
+  const handleScrollToBottom = () => {
+    setIsUserScrolling(false);
+    scrollToBottom('smooth');
   };
 
   const renderMessageContent = (message, isOwnMessage) => {
@@ -95,7 +154,7 @@ const MessageList = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex-1 overflow-y-auto p-4 space-y-4 relative" ref={messagesContainerRef} onScroll={handleScroll}>
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-gray-500 dark:text-gray-400">
@@ -146,7 +205,7 @@ const MessageList = () => {
                 </div>
               </div>
 
-              {/* Reactions - UPDATED with isOwnMessage prop */}
+              {/* Reactions */}
               <MessageReactions
                 messageId={message._id}
                 reactions={message.reactions || []}
@@ -167,6 +226,20 @@ const MessageList = () => {
         })
       )}
       <div ref={messagesEndRef} />
+
+      {/* Scroll to Bottom Button - Fixed to viewport, centered */}
+      {showScrollButton && (
+        <button
+          onClick={handleScrollToBottom}
+          className="fixed bottom-28 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-full p-2 shadow-lg transition-all hover:scale-110 active:scale-95 border border-gray-200 dark:border-gray-600 z-[100]"
+          style={{
+            marginLeft: 'calc((100vw - 100%) / 2)',
+          }}
+          title="Scroll to bottom"
+        >
+          <ArrowDown className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 };
