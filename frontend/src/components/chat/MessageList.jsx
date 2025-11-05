@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Reply } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
 import socketService from '../../services/socketService';
 import CodeSnippet from './CodeSnippet';
 import FileMessage from './FileMessage';
 import MessageReactions from './MessageReactions';
+import { highlightMentions, isUserMentioned } from '../../utils/mentionUtils';
 
 const MessageList = () => {
-  const { messages, updateMessageReactions, currentRoom } = useChatStore();
+  const { messages, updateMessageReactions, currentRoom, setReplyingTo } = useChatStore();
   const { user } = useAuthStore();
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -26,7 +27,7 @@ const MessageList = () => {
   const isNearBottom = () => {
     if (!messagesContainerRef.current) return true;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    return scrollHeight - scrollTop - clientHeight < 100; // Within 100px of bottom
+    return scrollHeight - scrollTop - clientHeight < 100;
   };
 
   // Handle scroll event
@@ -36,7 +37,6 @@ const MessageList = () => {
     const nearBottom = isNearBottom();
     setShowScrollButton(!nearBottom);
     
-    // If user manually scrolled, mark as scrolling
     if (!nearBottom) {
       setIsUserScrolling(true);
     } else {
@@ -44,16 +44,11 @@ const MessageList = () => {
     }
   };
 
-  // Auto-scroll ONLY when:
-  // 1. New message arrives (messages.length changes)
-  // 2. User is already near the bottom
-  // 3. Room just changed
+  // Auto-scroll logic
   useEffect(() => {
     const messageCountChanged = messages.length !== previousMessageCountRef.current;
     previousMessageCountRef.current = messages.length;
 
-    // Only auto-scroll if:
-    // - New message arrived AND user is near bottom OR not manually scrolling
     if (messageCountChanged) {
       if (!isUserScrolling || isNearBottom()) {
         scrollToBottom('smooth');
@@ -61,26 +56,23 @@ const MessageList = () => {
     }
   }, [messages.length, isUserScrolling]);
 
-  // Auto-scroll when room changes (initial load)
+  // Auto-scroll when room changes
   useEffect(() => {
     if (currentRoom) {
       setIsUserScrolling(false);
-      scrollToBottom('auto'); // Instant scroll on room change
+      scrollToBottom('auto');
     }
   }, [currentRoom?._id]);
 
-  // Listen for reaction updates from socket
+  // Listen for reaction updates
   useEffect(() => {
     const handleReactionUpdate = ({ messageId, reactions }) => {
       updateMessageReactions(messageId, reactions);
-      // DON'T auto-scroll on reactions
     };
 
     socketService.onReactionUpdate(handleReactionUpdate);
 
-    return () => {
-      // Cleanup listener if needed
-    };
+    return () => {};
   }, [updateMessageReactions]);
 
   // Handle add reaction
@@ -103,6 +95,46 @@ const MessageList = () => {
     scrollToBottom('smooth');
   };
 
+  // Handle reply button click
+  const handleReply = (message) => {
+    setReplyingTo(message);
+  };
+
+  // Render replied message preview
+  const renderRepliedMessage = (replyTo) => {
+    if (!replyTo) return null;
+
+    return (
+      <div className="mb-2 pl-3 border-l-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded p-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Reply className="w-3 h-3 text-blue-500" />
+          <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+            {replyTo.sender?.username || 'Unknown'}
+          </span>
+        </div>
+        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+          {replyTo.type === 'code' ? '📝 Code snippet' : 
+           replyTo.type === 'image' ? '🖼️ Image' :
+           replyTo.type === 'file' ? '📎 File' :
+           replyTo.content}
+        </p>
+      </div>
+    );
+  };
+
+  // NEW: Render text with mentions highlighted
+  const renderTextWithMentions = (content, isOwnMessage) => {
+    const currentUserMentioned = isUserMentioned(content, user?.username);
+    const highlightedContent = highlightMentions(content, user?.username);
+
+    return (
+      <div
+        className="whitespace-pre-wrap break-words"
+        dangerouslySetInnerHTML={{ __html: highlightedContent }}
+      />
+    );
+  };
+
   const renderMessageContent = (message, isOwnMessage) => {
     // Code snippets
     if (message.type === 'code') {
@@ -119,9 +151,9 @@ const MessageList = () => {
       return (
         <>
           {message.content && (
-            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-2">
-              {message.content}
-            </p>
+            <div className="text-gray-900 dark:text-gray-100 mb-2">
+              {renderTextWithMentions(message.content, isOwnMessage)}
+            </div>
           )}
           <FileMessage
             fileUrl={message.fileUrl}
@@ -145,11 +177,11 @@ const MessageList = () => {
       );
     }
 
-    // Regular text message
+    // Regular text message with mentions
     return (
-      <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
-        {message.content}
-      </p>
+      <div className="text-gray-900 dark:text-gray-100">
+        {renderTextWithMentions(message.content, isOwnMessage)}
+      </div>
     );
   };
 
@@ -166,6 +198,7 @@ const MessageList = () => {
           const isOwnMessage = message.sender?._id === user._id;
           const isSystemMessage = message.type === 'system';
           const isFileOrImage = message.type === 'file' || message.type === 'image';
+          const isMentioned = !isOwnMessage && isUserMentioned(message.content, user?.username);
 
           if (isSystemMessage) {
             return (
@@ -178,7 +211,7 @@ const MessageList = () => {
           return (
             <div
               key={message._id}
-              className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}
+              className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} group`}
             >
               {/* Sender name (only for others' messages) */}
               {!isOwnMessage && (
@@ -189,20 +222,37 @@ const MessageList = () => {
                 </div>
               )}
 
-              {/* Message bubble - Borderless for images */}
-              <div
-                className={`max-w-[70%] ${
-                  isFileOrImage && !message.content
-                    ? '' // No background/padding for standalone images
-                    : isOwnMessage
-                    ? 'bg-primary text-white rounded-2xl px-4 py-2'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
-                }`}
-              >
-                {/* Message content */}
-                <div className={message.type === 'code' ? '' : ''}>
-                  {renderMessageContent(message, isOwnMessage)}
+              {/* Message bubble */}
+              <div className={`max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
+                <div
+                  className={`${
+                    isFileOrImage && !message.content
+                      ? ''
+                      : isOwnMessage
+                      ? 'bg-primary text-white rounded-2xl px-4 py-2'
+                      : isMentioned
+                      ? 'bg-orange-100 dark:bg-orange-900/30 border-2 border-orange-400 dark:border-orange-600 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
+                  }`}
+                >
+                  {/* Show replied message if exists */}
+                  {message.replyTo && renderRepliedMessage(message.replyTo)}
+
+                  {/* Message content */}
+                  <div className={message.type === 'code' ? '' : ''}>
+                    {renderMessageContent(message, isOwnMessage)}
+                  </div>
                 </div>
+
+                {/* Reply Button - Shows on hover */}
+                <button
+                  onClick={() => handleReply(message)}
+                  className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-blue-400 px-2 py-1 rounded"
+                  title="Reply to this message"
+                >
+                  <Reply className="w-3 h-3" />
+                  <span>Reply</span>
+                </button>
               </div>
 
               {/* Reactions */}
@@ -215,7 +265,7 @@ const MessageList = () => {
                 isOwnMessage={isOwnMessage}
               />
 
-              {/* Timestamp - Outside bubble */}
+              {/* Timestamp */}
               <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {format(new Date(message.createdAt), 'HH:mm')}
@@ -227,7 +277,7 @@ const MessageList = () => {
       )}
       <div ref={messagesEndRef} />
 
-      {/* Scroll to Bottom Button - Fixed to viewport, centered */}
+      {/* Scroll to Bottom Button */}
       {showScrollButton && (
         <button
           onClick={handleScrollToBottom}

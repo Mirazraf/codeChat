@@ -10,6 +10,7 @@ const useChatStore = create((set, get) => ({
   typingUsers: [],
   loading: false,
   error: null,
+  replyingTo: null, // NEW: Track which message is being replied to
 
   // Fetch all rooms
   fetchRooms: async () => {
@@ -79,7 +80,7 @@ const useChatStore = create((set, get) => ({
     const { currentRoom } = get();
     if (currentRoom) {
       socketService.leaveRoom(currentRoom._id, userId);
-      set({ currentRoom: null, messages: [], typingUsers: [] });
+      set({ currentRoom: null, messages: [], typingUsers: [], replyingTo: null });
     }
   },
 
@@ -98,6 +99,7 @@ const useChatStore = create((set, get) => ({
         currentRoom: room,
         messages: messagesData.data,
         typingUsers: [],
+        replyingTo: null,
       });
       socketService.joinRoom(room._id, userId);
     } catch (error) {
@@ -140,13 +142,23 @@ const useChatStore = create((set, get) => ({
     });
   },
 
-  // Update message reactions - NEW METHOD FOR REACTIONS
+  // Update message reactions
   updateMessageReactions: (messageId, reactions) => {
     set((state) => ({
       messages: state.messages.map((msg) =>
         msg._id === messageId ? { ...msg, reactions } : msg
       ),
     }));
+  },
+
+  // NEW: Set replying to message
+  setReplyingTo: (message) => {
+    set({ replyingTo: message });
+  },
+
+  // NEW: Clear reply
+  clearReply: () => {
+    set({ replyingTo: null });
   },
 
   // Clear error
@@ -161,6 +173,7 @@ const useChatStore = create((set, get) => ({
     typingUsers: [],
     loading: false,
     error: null,
+    replyingTo: null,
   }),
 }));
 

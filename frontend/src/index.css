@@ -1,6 +1,11 @@
+/* Import mention styles */
+@import './styles/mentions.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
 
 * {
   margin: 0;

@@ -98,10 +98,10 @@ const socketHandler = (io) => {
       }
     });
 
-    // Handle sending a message (including file messages)
+    // Handle sending a message (including file messages and replies)
     socket.on('sendMessage', async (messageData) => {
       try {
-        const { roomId, userId, content, type, codeLanguage, fileUrl, fileName, fileSize, fileType } = messageData;
+        const { roomId, userId, content, type, codeLanguage, fileUrl, fileName, fileSize, fileType, replyTo } = messageData;
 
         // Save message to database
         const message = await Message.create({
@@ -114,13 +114,19 @@ const socketHandler = (io) => {
           fileName,
           fileSize,
           fileType,
+          replyTo: replyTo || null, // NEW: Store reply reference
         });
 
-        // Populate sender info
-        const populatedMessage = await Message.findById(message._id).populate(
-          'sender',
-          'username email avatar role'
-        );
+        // Populate sender info AND replied message
+        const populatedMessage = await Message.findById(message._id)
+          .populate('sender', 'username email avatar role')
+          .populate({
+            path: 'replyTo',
+            populate: {
+              path: 'sender',
+              select: 'username avatar',
+            },
+          });
 
         // Update room last activity
         await Room.findByIdAndUpdate(roomId, {

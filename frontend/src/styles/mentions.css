@@ -1,0 +1,253 @@
+/* Mention styles in messages */
+.mention {
+  background-color: #3b82f6;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-block;
+}
+
+.mention:hover {
+  background-color: #2563eb;
+  transform: scale(1.05);
+}
+
+.mention-current {
+  background-color: #f59e0b;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Dark mode mention badges */
+.dark .mention {
+  background-color: #2563eb;
+}
+
+.dark .mention:hover {
+  background-color: #1d4ed8;
+}
+
+.dark .mention-current {
+  background-color: #d97706;
+}
+
+/* Mention suggestions dropdown container */
+.mention-suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 -10px 15px -3px rgb(0 0 0 / 0.1), 0 -4px 6px -2px rgb(0 0 0 / 0.05);
+  z-index: 50;
+  margin-bottom: 8px;
+  padding: 8px;
+}
+
+.dark .mention-suggestions {
+  background: #111827;
+  border-color: #374151;
+}
+
+/* Individual suggestion item - separate card style */
+.mention-suggestion-item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  border-radius: 8px;
+  background: white;
+  border: 2px solid #e5e7eb;
+}
+
+.mention-suggestion-item:last-child {
+  margin-bottom: 0;
+}
+
+.mention-suggestion-item:hover {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  transform: translateX(4px);
+}
+
+.mention-suggestion-item.active {
+  background-color: #dbeafe;
+  border-color: #2563eb;
+  box-shadow: 0 2px 4px rgb(59 130 246 / 0.2);
+}
+
+/* Dark mode suggestion items */
+.dark .mention-suggestion-item {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+.dark .mention-suggestion-item:hover {
+  background-color: #1e3a8a;
+  border-color: #3b82f6;
+}
+
+.dark .mention-suggestion-item.active {
+  background-color: #1e40af;
+  border-color: #60a5fa;
+  box-shadow: 0 2px 4px rgb(96 165 250 / 0.3);
+}
+
+/* Avatar styling */
+.mention-suggestion-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.dark .mention-suggestion-avatar {
+  border-color: #4b5563;
+}
+
+.mention-suggestion-item:hover .mention-suggestion-avatar,
+.mention-suggestion-item.active .mention-suggestion-avatar {
+  border-color: #3b82f6;
+}
+
+/* User info container */
+.mention-suggestion-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Username styling */
+.mention-suggestion-username {
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.dark .mention-suggestion-username {
+  color: #f9fafb;
+}
+
+.mention-suggestion-item:hover .mention-suggestion-username,
+.mention-suggestion-item.active .mention-suggestion-username {
+  color: #1e40af;
+}
+
+.dark .mention-suggestion-item:hover .mention-suggestion-username,
+.dark .mention-suggestion-item.active .mention-suggestion-username {
+  color: #93c5fd;
+}
+
+/* Role badge styling */
+.mention-suggestion-role {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: capitalize;
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f3f4f6;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.dark .mention-suggestion-role {
+  color: #9ca3af;
+  background: #374151;
+}
+
+.mention-suggestion-item:hover .mention-suggestion-role,
+.mention-suggestion-item.active .mention-suggestion-role {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.dark .mention-suggestion-item:hover .mention-suggestion-role,
+.dark .mention-suggestion-item.active .mention-suggestion-role {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+/* "No users found" message */
+.mention-suggestions-empty {
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dark .mention-suggestions-empty {
+  color: #9ca3af;
+}
+
+/* Custom scrollbar for suggestions */
+.mention-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mention-suggestions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mention-suggestions::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dark .mention-suggestions::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.mention-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark .mention-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Online indicator dot (optional enhancement) */
+.mention-suggestion-online {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  border: 2px solid white;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
+
+.dark .mention-suggestion-online {
+  border-color: #1f2937;
+}
+
+/* Avatar container for online indicator */
+.mention-suggestion-avatar-container {
+  position: relative;
+  flex-shrink: 0;
+}
