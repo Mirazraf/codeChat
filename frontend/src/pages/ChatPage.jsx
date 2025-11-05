@@ -7,8 +7,9 @@ import RoomList from '../components/chat/RoomList';
 import ChatWindow from '../components/chat/ChatWindow';
 import OnlineUsers from '../components/chat/OnlineUsers';
 import CreateRoomModal from '../components/chat/CreateRoomModal';
+import toast, { Toaster } from 'react-hot-toast';
 import ToastProvider from '../components/common/ToastProvider';
-import toast from 'react-hot-toast';
+
 
 const ChatPage = () => {
   const { user } = useAuthStore();
@@ -19,14 +20,10 @@ const ChatPage = () => {
     addMessage,
     setOnlineUsers,
     setTypingUser,
-    updateMessageReaction,
-    updateEditedMessage,
-    handleDeletedMessage,
     leaveRoom,
   } = useChatStore();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,11 +32,14 @@ const ChatPage = () => {
       return;
     }
 
+    // Add class to body to prevent scrolling
     document.body.classList.add('chat-page');
     document.documentElement.style.overflow = 'hidden';
 
+    // Connect to socket
     const socket = socketService.connect(user._id);
 
+    // Fetch rooms
     fetchRooms().catch((err) => {
       toast.error('Failed to load rooms');
     });
@@ -47,22 +47,6 @@ const ChatPage = () => {
     // Listen for messages
     socketService.onMessage((message) => {
       addMessage(message);
-    });
-
-    // Listen for message reactions
-    socketService.onMessageReaction((updatedMessage) => {
-      updateMessageReaction(updatedMessage);
-    });
-
-    // Listen for message edits
-    socketService.onMessageEdited((editedMessage) => {
-      updateEditedMessage(editedMessage);
-      toast.success('Message updated');
-    });
-
-    // Listen for message deletions
-    socketService.onMessageDeleted((data) => {
-      handleDeletedMessage(data);
     });
 
     // Listen for online users
@@ -75,16 +59,16 @@ const ChatPage = () => {
       setTypingUser(username, isTyping);
     });
 
+    // Cleanup on unmount - leave room when navigating away
     return () => {
       document.body.classList.remove('chat-page');
       document.documentElement.style.overflow = '';
-      
       if (currentRoom) {
         leaveRoom(user._id);
       }
       socketService.disconnect();
     };
-  }, [user?._id, navigate]);
+  }, [user, navigate]);
 
   return (
     <div 
@@ -110,7 +94,7 @@ const ChatPage = () => {
         {/* Middle - Chat Window */}
         <div className={`${currentRoom ? 'flex' : 'hidden md:flex'} flex-1 flex-col overflow-hidden`}>
           {currentRoom ? (
-            <ChatWindow replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
+            <ChatWindow />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
               <div className="text-center px-4">

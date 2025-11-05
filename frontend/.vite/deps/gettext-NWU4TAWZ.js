@@ -1,0 +1,7 @@
+import {
+  gettext
+} from "./chunk-J6CBBOPL.js";
+import "./chunk-G3PMV62Z.js";
+export {
+  gettext as default
+};

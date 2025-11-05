@@ -23,59 +23,30 @@ const messageSchema = new mongoose.Schema(
     },
     codeLanguage: {
       type: String,
+      // For code snippets: javascript, python, java, etc.
     },
     fileUrl: {
       type: String,
+      // For file/image messages - Cloudinary URL
     },
     fileName: {
       type: String,
+      // Original file name
     },
     fileSize: {
       type: Number,
+      // File size in bytes
     },
     fileType: {
       type: String,
+      // MIME type (image/jpeg, application/pdf, etc.)
     },
-    // Reply feature
-    replyTo: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Message',
-      default: null,
-    },
-    // Reactions feature
-    reactions: [
-      {
-        user: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        emoji: {
-          type: String, // '👍', '❤️', '😂', '😮', '😢', '🙏', etc.
-        },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-    // Edit feature
     isEdited: {
       type: Boolean,
       default: false,
     },
     editedAt: {
       type: Date,
-    },
-    // Delete feature
-    deletedFor: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
-    isDeletedForEveryone: {
-      type: Boolean,
-      default: false,
     },
     readBy: [
       {
