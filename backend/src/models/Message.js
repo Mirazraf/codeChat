@@ -14,7 +14,6 @@ const messageSchema = new mongoose.Schema(
     },
     content: {
       type: String,
-      required: [true, 'Message content is required'],
       trim: true,
     },
     type: {
@@ -28,10 +27,19 @@ const messageSchema = new mongoose.Schema(
     },
     fileUrl: {
       type: String,
-      // For file/image messages
+      // For file/image messages - Cloudinary URL
     },
     fileName: {
       type: String,
+      // Original file name
+    },
+    fileSize: {
+      type: Number,
+      // File size in bytes
+    },
+    fileType: {
+      type: String,
+      // MIME type (image/jpeg, application/pdf, etc.)
     },
     isEdited: {
       type: Boolean,

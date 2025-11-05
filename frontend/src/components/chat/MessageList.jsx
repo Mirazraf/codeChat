@@ -1,130 +1,133 @@
 import { useEffect, useRef } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
+import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
+import CodeSnippet from './CodeSnippet';
+import FileMessage from './FileMessage';
 
-const MessageList = ({ messages }) => {
+const MessageList = () => {
+  const { messages } = useChatStore();
   const { user } = useAuthStore();
   const messagesEndRef = useRef(null);
-  const containerRef = useRef(null);
 
-  const scrollToBottom = () => {
-    // Scroll within the container only, not the entire page
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  };
-
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const isOwnMessage = (message) => {
-    return message.sender?._id === user._id;
-  };
+  const renderMessageContent = (message) => {
+    // Code snippets
+    if (message.type === 'code') {
+      return (
+        <CodeSnippet 
+          code={message.content} 
+          language={message.codeLanguage || 'javascript'} 
+        />
+      );
+    }
 
-  const formatTime = (date) => {
-    return formatDistanceToNow(new Date(date), { addSuffix: true });
+    // File or Image messages
+    if (message.type === 'file' || message.type === 'image') {
+      return (
+        <>
+          {message.content && (
+            <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words mb-2">
+              {message.content}
+            </p>
+          )}
+          <FileMessage
+            fileUrl={message.fileUrl}
+            fileName={message.fileName}
+            fileType={message.fileType}
+            fileSize={message.fileSize}
+          />
+        </>
+      );
+    }
+
+    // System messages
+    if (message.type === 'system') {
+      return (
+        <div className="text-center py-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+            {message.content}
+          </span>
+        </div>
+      );
+    }
+
+    // Regular text message
+    return (
+      <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
+        {message.content}
+      </p>
+    );
   };
 
   return (
-    <div 
-      ref={containerRef}
-      className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-gray-50 dark:bg-gray-900"
-      style={{ scrollBehavior: 'smooth', overscrollBehavior: 'contain' }}
-    >
-      {messages.map((message, index) => {
-        if (message.type === 'system') {
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.length === 0 ? (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-gray-500 dark:text-gray-400">
+            No messages yet. Start the conversation!
+          </p>
+        </div>
+      ) : (
+        messages.map((message) => {
+          const isOwnMessage = message.sender?._id === user._id;
+          const isSystemMessage = message.type === 'system';
+
+          if (isSystemMessage) {
+            return (
+              <div key={message._id}>
+                {renderMessageContent(message)}
+              </div>
+            );
+          }
+
           return (
-            <div key={index} className="text-center">
-              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full">
-                {message.content}
-              </span>
-            </div>
-          );
-        }
-
-        const isOwn = isOwnMessage(message);
-
-        return (
-          <div
-            key={message._id || index}
-            className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`flex ${isOwn ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2 max-w-[85%] md:max-w-2xl`}>
-              {/* Avatar */}
-              {!isOwn && (
-                <img
-                  src={message.sender?.avatar || 'https://via.placeholder.com/40'}
-                  alt={message.sender?.username}
-                  className="w-8 h-8 rounded-full flex-shrink-0"
-                />
-              )}
-
-              {/* Message Bubble */}
-              <div className={isOwn ? 'mr-2' : 'ml-2'}>
-                {!isOwn && (
-                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center space-x-2">
-                    <span>{message.sender?.username}</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 font-normal bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                      {message.sender?.role}
+            <div
+              key={message._id}
+              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[70%] ${
+                  isOwnMessage
+                    ? 'bg-primary text-white rounded-l-lg rounded-tr-lg'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-r-lg rounded-tl-lg'
+                }`}
+              >
+                {/* Sender name (only for others' messages) */}
+                {!isOwnMessage && (
+                  <div className="px-3 pt-2 pb-1">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      {message.sender?.username || 'Unknown'}
                     </span>
                   </div>
                 )}
-                
-                <div
-                  className={`px-4 py-2 rounded-lg break-words ${
-                    isOwn
-                      ? 'bg-primary text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {message.type === 'code' ? (
-                    <div className="overflow-x-auto">
-                      <pre className="text-sm">
-                        <code className="text-xs">{message.content}</code>
-                      </pre>
-                    </div>
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                      {message.content}
-                    </p>
-                  )}
-                  
-                  {message.codeLanguage && (
-                    <div className={`text-xs mt-2 opacity-70 border-t pt-1 ${
-                      isOwn ? 'border-white border-opacity-20' : 'border-gray-300 dark:border-gray-600'
-                    }`}>
-                      Language: {message.codeLanguage}
-                    </div>
-                  )}
+
+                {/* Message content */}
+                <div className={message.type === 'code' ? '' : 'px-3 py-2'}>
+                  {renderMessageContent(message)}
                 </div>
 
-                <div className={`text-xs text-gray-400 dark:text-gray-500 mt-1 ${isOwn ? 'text-right' : 'text-left'}`}>
-                  {formatTime(message.createdAt)}
+                {/* Timestamp */}
+                <div className="px-3 pb-1 text-right">
+                  <span
+                    className={`text-xs ${
+                      isOwnMessage
+                        ? 'text-blue-100'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
+                    {format(new Date(message.createdAt), 'HH:mm')}
+                  </span>
                 </div>
               </div>
-
-              {/* Own Avatar */}
-              {isOwn && (
-                <img
-                  src={user?.avatar || 'https://via.placeholder.com/40'}
-                  alt="You"
-                  className="w-8 h-8 rounded-full flex-shrink-0"
-                />
-              )}
             </div>
-          </div>
-        );
-      })}
-      
-      {messages.length === 0 && (
-        <div className="text-center text-gray-500 dark:text-gray-400 mt-10">
-          <p className="text-lg">No messages yet</p>
-          <p className="text-sm mt-2">Be the first to say something! 👋</p>
-        </div>
+          );
+        })
       )}
-      
-      {/* Invisible element at the bottom for reference */}
       <div ref={messagesEndRef} />
     </div>
   );

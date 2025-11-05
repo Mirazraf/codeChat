@@ -98,18 +98,22 @@ const socketHandler = (io) => {
       }
     });
 
-    // Handle sending a message
+    // Handle sending a message (including file messages)
     socket.on('sendMessage', async (messageData) => {
       try {
-        const { roomId, userId, content, type, codeLanguage } = messageData;
+        const { roomId, userId, content, type, codeLanguage, fileUrl, fileName, fileSize, fileType } = messageData;
 
         // Save message to database
         const message = await Message.create({
           room: roomId,
           sender: userId,
-          content,
+          content: content || '',
           type: type || 'text',
           codeLanguage,
+          fileUrl,
+          fileName,
+          fileSize,
+          fileType,
         });
 
         // Populate sender info
@@ -120,13 +124,11 @@ const socketHandler = (io) => {
 
         // Update room last activity
         await Room.findByIdAndUpdate(roomId, {
-          lastActivity: Date.now(),
+          lastActivity: new Date(),
         });
 
-        // Broadcast message to all users in the room
+        // Broadcast message to room
         io.to(roomId).emit('message', populatedMessage);
-
-        console.log(`💬 Message sent in room ${roomId} by ${socket.username}`);
       } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });

@@ -67,3 +67,54 @@ code {
 .overflow-wrap-anywhere {
   overflow-wrap: anywhere;
 }
+
+
+/* Markdown content styling */
+.markdown-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.5rem 0;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-content table th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+.dark .markdown-content table th {
+  background-color: #374151;
+}
+
+.dark .markdown-content table th,
+.dark .markdown-content table td {
+  border-color: #4b5563;
+}
+
+/* Ensure code blocks don't break layout */
+.markdown-content pre {
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
