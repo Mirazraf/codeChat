@@ -159,6 +159,97 @@ const socketHandler = (io) => {
       }
     });
 
+    // Handle message reactions - ADD REACTION
+    socket.on('addReaction', async ({ messageId, userId, emoji, roomId }) => {
+      try {
+        const message = await Message.findById(messageId);
+        if (!message) {
+          socket.emit('error', { message: 'Message not found' });
+          return;
+        }
+
+        // Check if the emoji already exists in reactions
+        const existingReaction = message.reactions.find(r => r.emoji === emoji);
+
+        if (existingReaction) {
+          // Check if user already reacted with this emoji
+          if (!existingReaction.users.includes(userId)) {
+            existingReaction.users.push(userId);
+          }
+        } else {
+          // Create new reaction entry
+          message.reactions.push({
+            emoji: emoji,
+            users: [userId],
+          });
+        }
+
+        await message.save();
+
+        // Populate sender info and emit to room
+        const updatedMessage = await Message.findById(messageId).populate(
+          'sender',
+          'username email avatar role'
+        );
+
+        io.to(roomId).emit('reactionUpdate', {
+          messageId: messageId,
+          reactions: updatedMessage.reactions,
+        });
+
+        console.log(`👍 Reaction added: ${emoji} by user ${userId} on message ${messageId}`);
+      } catch (error) {
+        console.error('Add reaction error:', error);
+        socket.emit('error', { message: 'Failed to add reaction' });
+      }
+    });
+
+    // Handle message reactions - REMOVE REACTION
+    socket.on('removeReaction', async ({ messageId, userId, emoji, roomId }) => {
+      try {
+        const message = await Message.findById(messageId);
+        if (!message) {
+          socket.emit('error', { message: 'Message not found' });
+          return;
+        }
+
+        // Find the reaction
+        const reactionIndex = message.reactions.findIndex(r => r.emoji === emoji);
+
+        if (reactionIndex !== -1) {
+          const reaction = message.reactions[reactionIndex];
+          
+          // Remove user from the reaction
+          reaction.users = reaction.users.filter(
+            uid => uid.toString() !== userId.toString()
+          );
+
+          // If no users left, remove the entire reaction
+          if (reaction.users.length === 0) {
+            message.reactions.splice(reactionIndex, 1);
+          }
+
+          await message.save();
+
+          // Populate sender info and emit to room
+          const updatedMessage = await Message.findById(messageId).populate(
+            'sender',
+            'username email avatar role'
+          );
+
+          io.to(roomId).emit('reactionUpdate', {
+            messageId: messageId,
+            reactions: updatedMessage.reactions,
+          });
+
+          console.log(`👎 Reaction removed: ${emoji} by user ${userId} on message ${messageId}`);
+        }
+      } catch (error) {
+        console.error('Remove reaction error:', error);
+        socket.emit('error', { message: 'Failed to remove reaction' });
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', async () => {
       try {

@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
+import socketService from '../../services/socketService';
 import CodeSnippet from './CodeSnippet';
 import FileMessage from './FileMessage';
+import MessageReactions from './MessageReactions';
 
 const MessageList = () => {
-  const { messages } = useChatStore();
+  const { messages, updateMessageReactions, currentRoom } = useChatStore();
   const { user } = useAuthStore();
   const messagesEndRef = useRef(null);
 
@@ -14,6 +16,33 @@ const MessageList = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Listen for reaction updates from socket
+  useEffect(() => {
+    const handleReactionUpdate = ({ messageId, reactions }) => {
+      updateMessageReactions(messageId, reactions);
+    };
+
+    socketService.onReactionUpdate(handleReactionUpdate);
+
+    return () => {
+      // Cleanup listener if needed (socket.io doesn't require explicit off in this pattern)
+    };
+  }, [updateMessageReactions]);
+
+  // Handle add reaction
+  const handleAddReaction = (messageId, emoji) => {
+    if (currentRoom && user) {
+      socketService.addReaction(messageId, user._id, emoji, currentRoom._id);
+    }
+  };
+
+  // Handle remove reaction
+  const handleRemoveReaction = (messageId, emoji) => {
+    if (currentRoom && user) {
+      socketService.removeReaction(messageId, user._id, emoji, currentRoom._id);
+    }
+  };
 
   const renderMessageContent = (message, isOwnMessage) => {
     // Code snippets
@@ -116,6 +145,16 @@ const MessageList = () => {
                   {renderMessageContent(message, isOwnMessage)}
                 </div>
               </div>
+
+              {/* Reactions - UPDATED with isOwnMessage prop */}
+              <MessageReactions
+                messageId={message._id}
+                reactions={message.reactions || []}
+                currentUserId={user._id}
+                onAddReaction={handleAddReaction}
+                onRemoveReaction={handleRemoveReaction}
+                isOwnMessage={isOwnMessage}
+              />
 
               {/* Timestamp - Outside bubble */}
               <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>

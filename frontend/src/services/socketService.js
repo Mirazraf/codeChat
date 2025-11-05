@@ -80,6 +80,27 @@ class SocketService {
     }
   }
 
+  // NEW: Add reaction to message
+  addReaction(messageId, userId, emoji, roomId) {
+    if (this.socket) {
+      this.socket.emit('addReaction', { messageId, userId, emoji, roomId });
+    }
+  }
+
+  // NEW: Remove reaction from message
+  removeReaction(messageId, userId, emoji, roomId) {
+    if (this.socket) {
+      this.socket.emit('removeReaction', { messageId, userId, emoji, roomId });
+    }
+  }
+
+  // NEW: Listen for reaction updates
+  onReactionUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('reactionUpdate', callback);
+    }
+  }
+
   getSocket() {
     return this.socket;
   }

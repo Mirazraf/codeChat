@@ -140,6 +140,15 @@ const useChatStore = create((set, get) => ({
     });
   },
 
+  // Update message reactions - NEW METHOD FOR REACTIONS
+  updateMessageReactions: (messageId, reactions) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg._id === messageId ? { ...msg, reactions } : msg
+      ),
+    }));
+  },
+
   // Clear error
   clearError: () => set({ error: null }),
 
