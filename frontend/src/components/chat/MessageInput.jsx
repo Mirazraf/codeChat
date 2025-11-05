@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Code, Smile, Paperclip, X, Loader } from 'lucide-react';
+import { Send, Code, Smile, Paperclip, X, Loader, Image as ImageIcon } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import EmojiPicker from 'emoji-picker-react';
 import useChatStore from '../../store/useChatStore';
@@ -15,9 +15,9 @@ const MessageInput = () => {
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState('javascript');
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [filePreview, setFilePreview] = useState(null);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]); // Changed to array for multiple files
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   const inputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -28,6 +28,9 @@ const MessageInput = () => {
   const { currentRoom, sendMessage } = useChatStore();
   const { user } = useAuthStore();
   const { theme } = useThemeStore();
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_FILES = 5; // Maximum files per upload
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -45,6 +48,35 @@ const MessageInput = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showEmojiPicker]);
+
+  // Handle paste event for images
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const files = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            files.push(file);
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        handleFilesSelection(files);
+        toast.success(`${files.length} image(s) pasted!`);
+      }
+    };
+
+    const textarea = textareaRef.current;
+    if (textarea && !showCodeInput) {
+      textarea.addEventListener('paste', handlePaste);
+      return () => textarea.removeEventListener('paste', handlePaste);
+    }
+  }, [showCodeInput, selectedFiles.length]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -74,43 +106,98 @@ const MessageInput = () => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const validateFile = (file) => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return {
+        valid: false,
+        error: `"${file.name}" is too large (${formatFileSize(file.size)}). Maximum size is ${formatFileSize(MAX_FILE_SIZE)}.`
+      };
+    }
 
-    // Validate file size (10MB for Cloudinary free tier)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      toast.error(
-        `File size must be less than ${formatFileSize(maxSize)}. Your file is ${formatFileSize(file.size)}.`,
-        { duration: 5000 }
-      );
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    // Check file type
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'application/zip',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      return {
+        valid: false,
+        error: `"${file.name}" is not a supported file type.`
+      };
+    }
+
+    return { valid: true };
+  };
+
+  const handleFilesSelection = (files) => {
+    const fileArray = Array.from(files);
+    
+    // Check total number of files
+    if (selectedFiles.length + fileArray.length > MAX_FILES) {
+      toast.error(`You can only upload ${MAX_FILES} files at a time. Currently selected: ${selectedFiles.length}`);
       return;
     }
 
-    setSelectedFile(file);
+    const validFiles = [];
+    const errors = [];
 
-    // Create preview for images
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFilePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setFilePreview(null);
+    fileArray.forEach(file => {
+      const validation = validateFile(file);
+      if (validation.valid) {
+        // Create preview for images
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            file.preview = reader.result;
+            setSelectedFiles(prev => [...prev, file]);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          validFiles.push(file);
+        }
+      } else {
+        errors.push(validation.error);
+      }
+    });
+
+    // Add non-image files immediately
+    if (validFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...validFiles]);
     }
 
-    toast.success(`File selected: ${file.name} (${formatFileSize(file.size)})`);
+    // Show errors
+    if (errors.length > 0) {
+      errors.forEach(error => {
+        toast.error(error, { duration: 5000 });
+      });
+    }
+
+    // Show success for valid files
+    if (validFiles.length > 0 || fileArray.some(f => f.type.startsWith('image/'))) {
+      const validCount = validFiles.length + fileArray.filter(f => f.type.startsWith('image/')).length;
+      if (validCount > 0) {
+        toast.success(`${validCount} file(s) selected`);
+      }
+    }
   };
 
-  const handleRemoveFile = () => {
-    setSelectedFile(null);
-    setFilePreview(null);
+  const handleFileSelect = (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    handleFilesSelection(files);
+  };
+
+  const handleRemoveFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -125,8 +212,7 @@ const MessageInput = () => {
     }
 
     // Handle file upload
-    if (selectedFile) {
-      console.log('📤 Uploading file:', selectedFile.name);
+    if (selectedFiles.length > 0) {
       await handleFileUpload();
       return;
     }
@@ -157,57 +243,64 @@ const MessageInput = () => {
   };
 
   const handleFileUpload = async () => {
-    if (!selectedFile) {
-      console.log('❌ No file selected');
-      return;
-    }
+    if (selectedFiles.length === 0) return;
 
-    setUploadingFile(true);
-    const loadingToast = toast.loading('Uploading file...');
+    setUploadingFiles(true);
+    setUploadProgress(0);
+
+    const totalFiles = selectedFiles.length;
+    let uploadedCount = 0;
+    const loadingToast = toast.loading(`Uploading ${totalFiles} file(s)...`);
 
     try {
-      console.log('📤 Starting upload for:', selectedFile.name);
-      
-      // Upload file to Cloudinary
-      const uploadResult = await fileService.uploadFile(selectedFile);
-      console.log('✅ Upload result:', uploadResult);
+      // Upload files sequentially to show progress
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        
+        try {
+          // Upload file to Cloudinary
+          const uploadResult = await fileService.uploadFile(file);
+          const fileData = uploadResult.data;
+          const isImage = file.type.startsWith('image/');
 
-      const fileData = uploadResult.data;
-      const isImage = selectedFile.type.startsWith('image/');
+          // Send file message via socket
+          sendMessage({
+            roomId: currentRoom._id,
+            userId: user._id,
+            content: i === 0 ? message.trim() : '', // Only add caption to first file
+            type: isImage ? 'image' : 'file',
+            fileUrl: fileData.url,
+            fileName: fileData.fileName,
+            fileSize: fileData.fileSize,
+            fileType: fileData.fileType,
+          });
 
-      console.log('📨 Sending file message via socket...');
-
-      // Send file message via socket
-      sendMessage({
-        roomId: currentRoom._id,
-        userId: user._id,
-        content: message.trim() || '', // Optional caption
-        type: isImage ? 'image' : 'file',
-        fileUrl: fileData.url,
-        fileName: fileData.fileName,
-        fileSize: fileData.fileSize,
-        fileType: fileData.fileType,
-      });
-
-      console.log('✅ File message sent');
+          uploadedCount++;
+          const progress = Math.round((uploadedCount / totalFiles) * 100);
+          setUploadProgress(progress);
+          
+          // Update toast
+          toast.loading(`Uploading... ${uploadedCount}/${totalFiles}`, { id: loadingToast });
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
 
       // Clear everything
       setMessage('');
-      setSelectedFile(null);
-      setFilePreview(null);
+      setSelectedFiles([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
 
-      toast.success('File uploaded successfully!', { id: loadingToast });
+      toast.success(`${uploadedCount} file(s) uploaded successfully!`, { id: loadingToast });
     } catch (error) {
-      console.error('❌ File upload error:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload file';
-      toast.error(errorMessage, { id: loadingToast, duration: 5000 });
+      console.error('File upload error:', error);
+      toast.error('Failed to upload files', { id: loadingToast });
     } finally {
-      setUploadingFile(false);
+      setUploadingFiles(false);
+      setUploadProgress(0);
     }
   };
 
@@ -267,36 +360,65 @@ const MessageInput = () => {
         </div>
       )}
 
-      {/* File Preview */}
-      {selectedFile && (
-        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            {filePreview ? (
-              <img
-                src={filePreview}
-                alt="Preview"
-                className="w-16 h-16 object-cover rounded"
-              />
-            ) : (
-              <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
-                <Paperclip className="w-6 h-6 text-gray-500" />
+      {/* Files Preview with Progress Bar */}
+      {selectedFiles.length > 0 && (
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
+          {/* Upload Progress Bar */}
+          {uploadingFiles && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  Uploading... {uploadProgress}%
+                </span>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                {selectedFile.name}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {formatFileSize(selectedFile.size)} • Max: 10 MB
-              </p>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
             </div>
-            <button
-              onClick={handleRemoveFile}
-              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition"
-              title="Remove file"
-            >
-              <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            </button>
+          )}
+
+          {/* File Previews */}
+          <div className="space-y-2">
+            {selectedFiles.map((file, index) => (
+              <div key={index} className="flex items-center space-x-3 bg-white dark:bg-gray-800 rounded-lg p-2">
+                {file.preview ? (
+                  <img
+                    src={file.preview}
+                    alt="Preview"
+                    className="w-12 h-12 object-cover rounded"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                    <Paperclip className="w-5 h-5 text-gray-500" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatFileSize(file.size)}
+                  </p>
+                </div>
+                {!uploadingFiles && (
+                  <button
+                    onClick={() => handleRemoveFile(index)}
+                    className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition"
+                    title="Remove file"
+                  >
+                    <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* File limit info */}
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {selectedFiles.length}/{MAX_FILES} files • Max {formatFileSize(MAX_FILE_SIZE)} per file
           </div>
         </div>
       )}
@@ -335,12 +457,12 @@ const MessageInput = () => {
           <button
             type="button"
             onClick={toggleCodeInput}
-            disabled={uploadingFile}
+            disabled={uploadingFiles}
             className={`p-2 rounded-lg transition ${
               showCodeInput
                 ? 'bg-primary text-white'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            } ${uploadingFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${uploadingFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
             title="Code snippet"
           >
             <Code className="w-5 h-5" />
@@ -348,12 +470,12 @@ const MessageInput = () => {
           <button
             type="button"
             onClick={toggleEmojiPicker}
-            disabled={uploadingFile}
+            disabled={uploadingFiles}
             className={`p-2 rounded-lg transition ${
               showEmojiPicker
                 ? 'bg-primary text-white'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            } ${uploadingFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+            } ${uploadingFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
             title="Emoji"
           >
             <Smile className="w-5 h-5" />
@@ -361,15 +483,15 @@ const MessageInput = () => {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingFile}
+            disabled={uploadingFiles || selectedFiles.length >= MAX_FILES}
             className={`p-2 rounded-lg transition text-gray-600 dark:text-gray-300 ${
-              uploadingFile 
+              uploadingFiles || selectedFiles.length >= MAX_FILES
                 ? 'opacity-50 cursor-not-allowed' 
                 : 'hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
-            title="Attach file (Max 10 MB)"
+            title={`Attach files (${selectedFiles.length}/${MAX_FILES})`}
           >
-            {uploadingFile ? (
+            {uploadingFiles ? (
               <Loader className="w-5 h-5 animate-spin" />
             ) : (
               <Paperclip className="w-5 h-5" />
@@ -383,12 +505,12 @@ const MessageInput = () => {
             <button
               type="button"
               onClick={toggleCodeInput}
-              disabled={uploadingFile}
+              disabled={uploadingFiles}
               className={`p-2 rounded-lg transition ${
                 showCodeInput
                   ? 'bg-primary text-white'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } ${uploadingFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${uploadingFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Code snippet"
             >
               <Code className="w-5 h-5" />
@@ -396,12 +518,12 @@ const MessageInput = () => {
             <button
               type="button"
               onClick={toggleEmojiPicker}
-              disabled={uploadingFile}
+              disabled={uploadingFiles}
               className={`p-2 rounded-lg transition ${
                 showEmojiPicker
                   ? 'bg-primary text-white'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } ${uploadingFile ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${uploadingFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
               title="Emoji"
             >
               <Smile className="w-5 h-5" />
@@ -409,15 +531,15 @@ const MessageInput = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingFile}
+              disabled={uploadingFiles || selectedFiles.length >= MAX_FILES}
               className={`p-2 rounded-lg transition text-gray-600 dark:text-gray-300 ${
-                uploadingFile 
+                uploadingFiles || selectedFiles.length >= MAX_FILES
                   ? 'opacity-50 cursor-not-allowed' 
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
-              title="Attach file (Max 10 MB)"
+              title={`Attach files (${selectedFiles.length}/${MAX_FILES})`}
             >
-              {uploadingFile ? (
+              {uploadingFiles ? (
                 <Loader className="w-5 h-5 animate-spin" />
               ) : (
                 <Paperclip className="w-5 h-5" />
@@ -425,14 +547,15 @@ const MessageInput = () => {
             </button>
           </div>
 
-          {/* Hidden file input */}
+          {/* Hidden file input - Multiple files */}
           <input
             ref={fileInputRef}
             type="file"
             onChange={handleFileSelect}
             accept="image/*,.pdf,.doc,.docx,.txt,.zip"
             className="hidden"
-            disabled={uploadingFile}
+            disabled={uploadingFiles}
+            multiple
           />
 
           {/* Text/Code Input */}
@@ -466,8 +589,12 @@ const MessageInput = () => {
                   handleTyping();
                 }}
                 onKeyDown={handleKeyDown}
-                disabled={uploadingFile}
-                placeholder={selectedFile ? "Add a caption (optional)..." : "Type a message..."}
+                disabled={uploadingFiles}
+                placeholder={
+                  selectedFiles.length > 0 
+                    ? "Add a caption (optional)..." 
+                    : "Type a message or paste an image..."
+                }
                 className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none text-sm sm:text-base disabled:opacity-50"
                 style={{ minHeight: '44px', maxHeight: '120px' }}
                 rows="1"
@@ -478,11 +605,11 @@ const MessageInput = () => {
           {/* Send Button */}
           <button
             type="submit"
-            disabled={(!message.trim() && !selectedFile) || uploadingFile}
+            disabled={(!message.trim() && selectedFiles.length === 0) || uploadingFiles}
             className="p-2.5 sm:p-3 bg-primary hover:bg-blue-600 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            title={selectedFile ? "Upload and send file" : "Send message"}
+            title={selectedFiles.length > 0 ? `Upload ${selectedFiles.length} file(s)` : "Send message"}
           >
-            {uploadingFile ? (
+            {uploadingFiles ? (
               <Loader className="w-5 h-5 animate-spin" />
             ) : (
               <Send className="w-5 h-5" />

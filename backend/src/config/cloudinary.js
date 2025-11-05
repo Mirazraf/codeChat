@@ -16,10 +16,16 @@ const storage = new CloudinaryStorage({
     // Determine resource type based on file mimetype
     let resourceType = 'auto';
     let format = null;
+    let transformation = [];
 
-    // Images should be stored as 'image'
+    // Images should be stored as 'image' with optimization
     if (file.mimetype.startsWith('image/')) {
       resourceType = 'image';
+      // Auto-optimize images: compress, auto format, and auto quality
+      transformation = [
+        { quality: 'auto:good' }, // Automatic quality adjustment
+        { fetch_format: 'auto' }, // Automatically deliver best format (WebP, AVIF, etc.)
+      ];
     } 
     // PDFs and documents should be stored as 'raw'
     else if (
@@ -41,6 +47,7 @@ const storage = new CloudinaryStorage({
       public_id: `${file.fieldname}-${uniqueSuffix}`,
       access_mode: 'public',
       format: format,
+      transformation: transformation.length > 0 ? transformation : undefined,
       allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'txt', 'zip'],
     };
   },

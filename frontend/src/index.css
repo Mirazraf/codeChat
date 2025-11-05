@@ -68,7 +68,6 @@ code {
   overflow-wrap: anywhere;
 }
 
-
 /* Markdown content styling */
 .markdown-content {
   word-wrap: break-word;
@@ -117,4 +116,22 @@ code {
 .markdown-content pre {
   overflow-x: auto;
   margin: 0.5rem 0;
+}
+
+/* Z-index hierarchy */
+/* Ensure context menus appear above everything */
+.context-menu {
+  z-index: 10000 !important;
+  position: fixed !important;
+}
+
+/* Toast notifications from react-hot-toast */
+[data-sonner-toaster],
+[data-sonner-toast] {
+  z-index: 99999 !important;
+}
+
+/* Ensure modals and overlays have proper z-index hierarchy */
+.modal-overlay {
+  z-index: 9000 !important;
 }

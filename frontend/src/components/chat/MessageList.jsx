@@ -15,7 +15,7 @@ const MessageList = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const renderMessageContent = (message) => {
+  const renderMessageContent = (message, isOwnMessage) => {
     // Code snippets
     if (message.type === 'code') {
       return (
@@ -40,6 +40,7 @@ const MessageList = () => {
             fileName={message.fileName}
             fileType={message.fileType}
             fileSize={message.fileSize}
+            isOwnMessage={isOwnMessage}
           />
         </>
       );
@@ -76,11 +77,12 @@ const MessageList = () => {
         messages.map((message) => {
           const isOwnMessage = message.sender?._id === user._id;
           const isSystemMessage = message.type === 'system';
+          const isFileOrImage = message.type === 'file' || message.type === 'image';
 
           if (isSystemMessage) {
             return (
               <div key={message._id}>
-                {renderMessageContent(message)}
+                {renderMessageContent(message, false)}
               </div>
             );
           }
@@ -88,41 +90,38 @@ const MessageList = () => {
           return (
             <div
               key={message._id}
-              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}
             >
-              <div
-                className={`max-w-[70%] ${
-                  isOwnMessage
-                    ? 'bg-primary text-white rounded-l-lg rounded-tr-lg'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-r-lg rounded-tl-lg'
-                }`}
-              >
-                {/* Sender name (only for others' messages) */}
-                {!isOwnMessage && (
-                  <div className="px-3 pt-2 pb-1">
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                      {message.sender?.username || 'Unknown'}
-                    </span>
-                  </div>
-                )}
-
-                {/* Message content */}
-                <div className={message.type === 'code' ? '' : 'px-3 py-2'}>
-                  {renderMessageContent(message)}
-                </div>
-
-                {/* Timestamp */}
-                <div className="px-3 pb-1 text-right">
-                  <span
-                    className={`text-xs ${
-                      isOwnMessage
-                        ? 'text-blue-100'
-                        : 'text-gray-500 dark:text-gray-400'
-                    }`}
-                  >
-                    {format(new Date(message.createdAt), 'HH:mm')}
+              {/* Sender name (only for others' messages) */}
+              {!isOwnMessage && (
+                <div className="mb-1 px-3">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {message.sender?.username || 'Unknown'}
                   </span>
                 </div>
+              )}
+
+              {/* Message bubble - Borderless for images */}
+              <div
+                className={`max-w-[70%] ${
+                  isFileOrImage && !message.content
+                    ? '' // No background/padding for standalone images
+                    : isOwnMessage
+                    ? 'bg-primary text-white rounded-2xl px-4 py-2'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-2xl px-4 py-2'
+                }`}
+              >
+                {/* Message content */}
+                <div className={message.type === 'code' ? '' : ''}>
+                  {renderMessageContent(message, isOwnMessage)}
+                </div>
+              </div>
+
+              {/* Timestamp - Outside bubble */}
+              <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {format(new Date(message.createdAt), 'HH:mm')}
+                </span>
               </div>
             </div>
           );

@@ -8,6 +8,8 @@ import ChatWindow from '../components/chat/ChatWindow';
 import OnlineUsers from '../components/chat/OnlineUsers';
 import CreateRoomModal from '../components/chat/CreateRoomModal';
 import toast, { Toaster } from 'react-hot-toast';
+import ToastProvider from '../components/common/ToastProvider';
+
 
 const ChatPage = () => {
   const { user } = useAuthStore();
@@ -73,7 +75,7 @@ const ChatPage = () => {
       className="fixed inset-0 flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden" 
       style={{ top: '64px' }}
     >
-      <Toaster position="top-right" />
+      <ToastProvider />
       
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Room List */}

@@ -1,6 +1,12 @@
-import { Download, File, FileText, Image as ImageIcon, ExternalLink } from 'lucide-react';
+import { Download, File, FileText, Image as ImageIcon, ExternalLink, Copy } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
 
-const FileMessage = ({ fileUrl, fileName, fileType, fileSize }) => {
+const FileMessage = ({ fileUrl, fileName, fileType, fileSize, isOwnMessage }) => {
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  
   const isImage = fileType?.startsWith('image/');
   const isPDF = fileType === 'application/pdf';
 
@@ -18,24 +24,79 @@ const FileMessage = ({ fileUrl, fileName, fileType, fileSize }) => {
     return <File className="w-6 h-6" />;
   };
 
+  const handleImageContextMenu = (e) => {
+    e.preventDefault();
+    
+    const menuWidth = 200;
+    const menuHeight = 150;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    let x = e.clientX;
+    let y = e.clientY;
+    
+    if (x + menuWidth > viewportWidth) {
+      x = viewportWidth - menuWidth - 10;
+    }
+    
+    if (y + menuHeight > viewportHeight) {
+      y = viewportHeight - menuHeight - 10;
+    }
+    
+    setContextMenuPos({ x, y });
+    setShowContextMenu(true);
+  };
+
+  const handleCopyImage = async () => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+      
+      toast.success('Image copied to clipboard!');
+      setShowContextMenu(false);
+    } catch (error) {
+      console.error('Copy error:', error);
+      
+      try {
+        await navigator.clipboard.writeText(fileUrl);
+        toast.success('Image URL copied to clipboard!');
+      } catch (err) {
+        toast.error('Failed to copy image');
+      }
+      setShowContextMenu(false);
+    }
+  };
+
+  const handleCopyImageUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(fileUrl);
+      toast.success('Image URL copied!');
+      setShowContextMenu(false);
+    } catch (error) {
+      toast.error('Failed to copy URL');
+      setShowContextMenu(false);
+    }
+  };
+
   const handleDownload = async (e) => {
     e.preventDefault();
     
     try {
-      // For PDFs and documents, convert Cloudinary URL to download URL
       let downloadUrl = fileUrl;
       
-      // If it's a Cloudinary URL, add fl_attachment flag for download
       if (fileUrl.includes('cloudinary.com')) {
-        // Insert fl_attachment before the version number or filename
         downloadUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
       }
       
-      // Fetch the file
       const response = await fetch(downloadUrl);
       const blob = await response.blob();
       
-      // Create a download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -43,12 +104,10 @@ const FileMessage = ({ fileUrl, fileName, fileType, fileSize }) => {
       document.body.appendChild(link);
       link.click();
       
-      // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download error:', error);
-      // Fallback: Try direct download
       const link = document.createElement('a');
       link.href = fileUrl.replace('/upload/', '/upload/fl_attachment/');
       link.download = fileName || 'download';
@@ -60,70 +119,154 @@ const FileMessage = ({ fileUrl, fileName, fileType, fileSize }) => {
   };
 
   const handleOpenPDF = () => {
-    // For Cloudinary PDFs, convert to proper viewing URL
     let viewUrl = fileUrl;
     
-    // If it's stored as 'raw' resource type, we need to open it differently
     if (fileUrl.includes('cloudinary.com')) {
-      // For raw files, open directly
       if (fileUrl.includes('/raw/upload/')) {
         viewUrl = fileUrl;
       } else {
-        // Convert image URL to raw URL for PDFs
         viewUrl = fileUrl.replace('/image/upload/', '/raw/upload/');
       }
     }
     
-    // Open in new tab
     window.open(viewUrl, '_blank');
   };
 
-  // Image display
+  useEffect(() => {
+    const handleClickOutside = () => setShowContextMenu(false);
+    const handleScroll = () => setShowContextMenu(false);
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setShowContextMenu(false);
+    };
+    
+    if (showContextMenu) {
+      document.addEventListener('click', handleClickOutside);
+      document.addEventListener('scroll', handleScroll, true);
+      document.addEventListener('keydown', handleEscape);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+        document.removeEventListener('scroll', handleScroll, true);
+        document.removeEventListener('keydown', handleEscape);
+      };
+    }
+  }, [showContextMenu]);
+
+  const ContextMenu = () => {
+    if (!showContextMenu) return null;
+
+    return createPortal(
+      <div
+        className="context-menu"
+        style={{
+          top: `${contextMenuPos.y}px`,
+          left: `${contextMenuPos.x}px`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl py-1 min-w-[200px]">
+          <button
+            onClick={handleCopyImage}
+            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 text-gray-700 dark:text-gray-200 transition"
+          >
+            <Copy className="w-4 h-4" />
+            <span>Copy Image</span>
+          </button>
+          <button
+            onClick={handleCopyImageUrl}
+            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 text-gray-700 dark:text-gray-200 transition"
+          >
+            <Copy className="w-4 h-4" />
+            <span>Copy Image URL</span>
+          </button>
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+          <button
+            onClick={(e) => {
+              handleDownload(e);
+              setShowContextMenu(false);
+            }}
+            className="w-full px-4 py-2.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 text-gray-700 dark:text-gray-200 transition"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download Image</span>
+          </button>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // Borderless image display - Messenger style
   if (isImage) {
     return (
-      <div className="my-2">
-        <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-          <img
-            src={fileUrl}
-            alt={fileName}
-            className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition"
-            style={{ maxHeight: '300px' }}
-            loading="lazy"
-          />
-        </a>
-        {fileName && (
-          <p className="text-xs mt-1 opacity-75">{fileName}</p>
-        )}
-      </div>
+      <>
+        <div className="relative">
+          <a 
+            href={fileUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            onContextMenu={handleImageContextMenu}
+            className="block"
+          >
+            <img
+              src={fileUrl}
+              alt={fileName || 'Image'}
+              className="max-w-full h-auto rounded-2xl cursor-pointer hover:opacity-95 transition shadow-sm"
+              style={{ maxHeight: '400px', minWidth: '200px' }}
+              loading="lazy"
+            />
+          </a>
+        </div>
+        <ContextMenu />
+      </>
     );
   }
 
-  // PDF display with embed
+  // PDF display - Cleaner, borderless style
   if (isPDF) {
     return (
-      <div className="my-2 max-w-sm">
-        <div className="bg-white dark:bg-gray-700 bg-opacity-10 rounded-lg p-3">
+      <div className="max-w-sm">
+        <div className={`${
+          isOwnMessage 
+            ? 'bg-blue-600 bg-opacity-20' 
+            : 'bg-gray-300 dark:bg-gray-600 bg-opacity-30'
+        } rounded-2xl p-3`}>
           <div className="flex items-center space-x-3 mb-3">
-            <div className="text-red-500">
+            <div className={`${isOwnMessage ? 'text-blue-200' : 'text-red-500'} flex-shrink-0`}>
               <FileText className="w-8 h-8" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{fileName}</p>
-              <p className="text-xs opacity-75">{formatFileSize(fileSize)}</p>
+              <p className={`text-sm font-medium truncate ${
+                isOwnMessage ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+              }`} title={fileName}>
+                {fileName}
+              </p>
+              <p className={`text-xs ${
+                isOwnMessage ? 'text-blue-100' : 'text-gray-600 dark:text-gray-400'
+              }`}>
+                {formatFileSize(fileSize)}
+              </p>
             </div>
           </div>
           
           <div className="flex space-x-2">
             <button
               onClick={handleOpenPDF}
-              className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm transition"
+              className={`flex-1 flex items-center justify-center space-x-2 px-3 py-2 ${
+                isOwnMessage
+                  ? 'bg-blue-500 hover:bg-blue-600'
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } text-white rounded-lg text-sm transition`}
             >
               <ExternalLink className="w-4 h-4" />
               <span>Open</span>
             </button>
             <button
               onClick={handleDownload}
-              className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm transition"
+              className={`flex-1 flex items-center justify-center space-x-2 px-3 py-2 ${
+                isOwnMessage
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-green-500 hover:bg-green-600'
+              } text-white rounded-lg text-sm transition`}
             >
               <Download className="w-4 h-4" />
               <span>Download</span>
@@ -134,23 +277,45 @@ const FileMessage = ({ fileUrl, fileName, fileType, fileSize }) => {
     );
   }
 
-  // Other files
+  // Other files - Cleaner style
   return (
-    <div className="my-2 flex items-center space-x-3 bg-white dark:bg-gray-700 bg-opacity-10 rounded-lg p-3 max-w-sm">
-      <div className="text-gray-600 dark:text-gray-300">
-        {getFileIcon()}
+    <div className="max-w-sm">
+      <div className={`${
+        isOwnMessage 
+          ? 'bg-blue-600 bg-opacity-20' 
+          : 'bg-gray-300 dark:bg-gray-600 bg-opacity-30'
+      } rounded-2xl p-3 flex items-center space-x-3`}>
+        <div className={`${
+          isOwnMessage ? 'text-blue-200' : 'text-gray-600 dark:text-gray-300'
+        } flex-shrink-0`}>
+          {getFileIcon()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium truncate ${
+            isOwnMessage ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+          }`} title={fileName}>
+            {fileName}
+          </p>
+          <p className={`text-xs ${
+            isOwnMessage ? 'text-blue-100' : 'text-gray-600 dark:text-gray-400'
+          }`}>
+            {formatFileSize(fileSize)}
+          </p>
+        </div>
+        <button
+          onClick={handleDownload}
+          className={`p-2 ${
+            isOwnMessage
+              ? 'hover:bg-blue-500 hover:bg-opacity-30'
+              : 'hover:bg-gray-400 hover:bg-opacity-30'
+          } rounded-lg transition flex-shrink-0`}
+          title="Download"
+        >
+          <Download className={`w-5 h-5 ${
+            isOwnMessage ? 'text-white' : 'text-gray-700 dark:text-gray-200'
+          }`} />
+        </button>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{fileName}</p>
-        <p className="text-xs opacity-75">{formatFileSize(fileSize)}</p>
-      </div>
-      <button
-        onClick={handleDownload}
-        className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition"
-        title="Download"
-      >
-        <Download className="w-5 h-5" />
-      </button>
     </div>
   );
 };
