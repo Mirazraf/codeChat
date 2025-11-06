@@ -148,8 +148,9 @@ const Navbar = () => {
                             {user?.email}
                           </p>
                         </div>
+                        {/* FIXED: Changed to="/profile" instead of to="/dashboard" */}
                         <Link
-                          to="/dashboard"
+                          to="/profile"
                           onClick={() => setUserMenuOpen(false)}
                           className={`flex items-center gap-2 px-4 py-2 transition ${
                             theme === 'dark'
@@ -270,6 +271,20 @@ const Navbar = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ADDED: Profile Link for Mobile */}
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-lg transition ${
+                    theme === 'dark'
+                      ? 'text-gray-300 hover:text-white hover:bg-[#2d2d3d]'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <User className="w-5 h-5" />
+                  <span>Profile</span>
+                </Link>
 
                 <Link
                   to="/dashboard"
