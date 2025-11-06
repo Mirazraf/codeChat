@@ -1,10 +1,12 @@
 import { Users, Hash, Lock } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
+import useThemeStore from '../../store/useThemeStore';
 
 const RoomList = ({ rooms, currentRoom }) => {
   const { setCurrentRoom, leaveRoom } = useChatStore();
   const { user } = useAuthStore();
+  const { theme } = useThemeStore();
 
   const handleRoomClick = async (room) => {
     if (currentRoom?._id !== room._id) {
@@ -27,7 +29,9 @@ const RoomList = ({ rooms, currentRoom }) => {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="p-2">
-        <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+        <h3 className={`px-3 py-2 text-xs font-semibold uppercase ${
+          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+        }`}>
           Rooms ({rooms.length})
         </h3>
         {rooms.map((room) => (
@@ -36,13 +40,21 @@ const RoomList = ({ rooms, currentRoom }) => {
             onClick={() => handleRoomClick(room)}
             className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition flex items-center space-x-3 ${
               currentRoom?._id === room._id
-                ? 'bg-primary text-white'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                ? theme === 'dark'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                  : 'bg-gray-800 text-white'
+                : theme === 'dark'
+                  ? 'hover:bg-[#2d2d3d] text-gray-300'
+                  : 'hover:bg-gray-100 text-gray-700'
             }`}
           >
             <div
               className={`${
-                currentRoom?._id === room._id ? 'text-white' : 'text-gray-500 dark:text-gray-400'
+                currentRoom?._id === room._id 
+                  ? 'text-white' 
+                  : theme === 'dark'
+                    ? 'text-gray-400'
+                    : 'text-gray-500'
               }`}
             >
               {getRoomIcon(room.type)}
@@ -52,8 +64,12 @@ const RoomList = ({ rooms, currentRoom }) => {
               <div
                 className={`text-xs truncate ${
                   currentRoom?._id === room._id
-                    ? 'text-blue-100'
-                    : 'text-gray-500 dark:text-gray-400'
+                    ? theme === 'dark'
+                      ? 'text-purple-200'
+                      : 'text-gray-300'
+                    : theme === 'dark'
+                      ? 'text-gray-400'
+                      : 'text-gray-500'
                 }`}
               >
                 {room.members?.length || 0} members
@@ -63,7 +79,9 @@ const RoomList = ({ rooms, currentRoom }) => {
         ))}
         
         {rooms.length === 0 && (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className={`text-center py-8 ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          }`}>
             <p className="text-sm">No rooms yet</p>
             <p className="text-xs mt-1">Create one to get started!</p>
           </div>

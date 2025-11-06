@@ -8,27 +8,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#3b82f6',
-        secondary: '#8b5cf6',
-        dark: '#1e293b',
-      },
-      animation: {
-        'blob': 'blob 7s infinite',
-      },
-      keyframes: {
-        blob: {
-          '0%': {
-            transform: 'translate(0px, 0px) scale(1)',
-          },
-          '33%': {
-            transform: 'translate(30px, -50px) scale(1.1)',
-          },
-          '66%': {
-            transform: 'translate(-20px, 20px) scale(0.9)',
-          },
-          '100%': {
-            transform: 'translate(0px, 0px) scale(1)',
-          },
+        primary: {
+          DEFAULT: '#6366f1', // Indigo for dark mode
+          light: '#0f766e',   // Teal for light mode
+          dark: '#6366f1',    // Indigo for dark mode
         },
       },
     },

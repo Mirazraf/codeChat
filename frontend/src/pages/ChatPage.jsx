@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
 import useChatStore from '../store/useChatStore';
+import useThemeStore from '../store/useThemeStore';
 import socketService from '../services/socketService';
 import RoomList from '../components/chat/RoomList';
 import ChatWindow from '../components/chat/ChatWindow';
@@ -13,6 +14,7 @@ import ToastProvider from '../components/common/ToastProvider';
 
 const ChatPage = () => {
   const { user } = useAuthStore();
+  const { theme } = useThemeStore();
   const {
     rooms,
     currentRoom,
@@ -72,18 +74,30 @@ const ChatPage = () => {
 
   return (
     <div 
-      className="fixed inset-0 flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden" 
+      className={`fixed inset-0 flex flex-col overflow-hidden ${
+        theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'
+      }`}
       style={{ top: '64px' }}
     >
       <ToastProvider />
       
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Room List */}
-        <div className={`${currentRoom ? 'hidden md:flex' : 'flex'} w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col overflow-hidden`}>
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className={`${currentRoom ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r flex-col overflow-hidden ${
+          theme === 'dark'
+            ? 'bg-[#1e1e2d] border-gray-700'
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className={`p-4 border-b flex-shrink-0 ${
+            theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+          }`}>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="w-full bg-primary hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition"
+              className={`w-full font-bold py-2 px-4 rounded-lg transition ${
+                theme === 'dark'
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                  : 'bg-gray-800 hover:bg-gray-900 text-white'
+              }`}
             >
               + Create Room
             </button>
@@ -96,13 +110,17 @@ const ChatPage = () => {
           {currentRoom ? (
             <ChatWindow />
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className={`flex-1 flex items-center justify-center ${
+              theme === 'dark' ? 'bg-[#2d2d3d]' : 'bg-gray-50'
+            }`}>
               <div className="text-center px-4">
                 <div className="text-6xl mb-4">💬</div>
-                <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-200 mb-2">
+                <h2 className={`text-2xl font-bold mb-2 ${
+                  theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                }`}>
                   Welcome to CodeChat!
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
                   Select a room or create a new one to start chatting
                 </p>
               </div>
