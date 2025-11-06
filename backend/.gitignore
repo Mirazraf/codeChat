@@ -11,3 +11,4 @@ dist/
 build/
 .vscode/
 .idea/
+.server-port

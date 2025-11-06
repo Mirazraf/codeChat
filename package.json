@@ -1,0 +1,18 @@
+{
+  "name": "codechat",
+  "version": "1.0.0",
+  "description": "Real-time chat application for developers",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start"
+  },
+  "keywords": ["chat", "websocket", "react", "nodejs"],
+  "author": "Miraz Rafi",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
