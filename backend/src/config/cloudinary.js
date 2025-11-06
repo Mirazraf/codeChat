@@ -2,6 +2,12 @@ const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
+// Log configuration
+console.log('🔧 Configuring Cloudinary...');
+console.log('Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME || 'NOT SET');
+console.log('API Key:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('API Secret:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -9,25 +15,33 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Configure Cloudinary storage for Multer
+// Test connection
+const testConnection = async () => {
+  try {
+    await cloudinary.api.ping();
+    console.log('✅ Cloudinary connected successfully!');
+  } catch (error) {
+    console.error('❌ Cloudinary connection failed:', error.message);
+  }
+};
+
+testConnection();
+
+// Configure Cloudinary storage for Multer (CHAT FILES)
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    // Determine resource type based on file mimetype
     let resourceType = 'auto';
     let format = null;
     let transformation = [];
 
-    // Images should be stored as 'image' with optimization
     if (file.mimetype.startsWith('image/')) {
       resourceType = 'image';
-      // Auto-optimize images: compress, auto format, and auto quality
       transformation = [
-        { quality: 'auto:good' }, // Automatic quality adjustment
-        { fetch_format: 'auto' }, // Automatically deliver best format (WebP, AVIF, etc.)
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' },
       ];
     } 
-    // PDFs and documents should be stored as 'raw'
     else if (
       file.mimetype === 'application/pdf' ||
       file.mimetype === 'application/msword' ||
@@ -38,11 +52,10 @@ const storage = new CloudinaryStorage({
       resourceType = 'raw';
     }
 
-    // Generate unique filename
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     
     return {
-      folder: 'codechat',
+      folder: 'codechat/files',
       resource_type: resourceType,
       public_id: `${file.fieldname}-${uniqueSuffix}`,
       access_mode: 'public',
@@ -53,7 +66,24 @@ const storage = new CloudinaryStorage({
   },
 });
 
-// File filter to validate file types
+// Configure Cloudinary storage for AVATAR uploads
+const avatarStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'codechat/avatars',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [
+      { width: 500, height: 500, crop: 'limit' },
+      { quality: 'auto:good' },
+      { fetch_format: 'auto' }
+    ],
+    public_id: (req, file) => {
+      return `avatar-${req.user._id}-${Date.now()}`;
+    },
+  },
+});
+
+// File filter for chat files
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     'image/jpeg',
@@ -74,7 +104,16 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure Multer
+// File filter for avatars (images only)
+const avatarFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed for avatars!'), false);
+  }
+};
+
+// Configure Multer for chat files
 const upload = multer({
   storage: storage,
   limits: {
@@ -83,4 +122,13 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-module.exports = { cloudinary, upload };
+// Configure Multer for avatars
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit for avatars
+  },
+  fileFilter: avatarFilter,
+});
+
+module.exports = { cloudinary, upload, avatarUpload };

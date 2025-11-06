@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please add a password'],
       minlength: [6, 'Password must be at least 6 characters'],
-      select: false, // Don't return password by default
+      select: false,
     },
     role: {
       type: String,
@@ -40,6 +40,26 @@ const userSchema = new mongoose.Schema(
     bio: {
       type: String,
       maxlength: [500, 'Bio cannot exceed 500 characters'],
+    },
+    // NEW FIELDS FOR PROFILE
+    institution: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    grade: {
+      type: String,
+      enum: ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '12+'],
+      default: '',
+    },
+    bloodGroup: {
+      type: String,
+      enum: ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+      default: '',
+    },
+    lastUsernameChange: {
+      type: Date,
+      default: Date.now,
     },
     isOnline: {
       type: Boolean,

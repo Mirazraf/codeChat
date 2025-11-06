@@ -63,6 +63,8 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/rooms', require('./routes/roomRoutes'));
 app.use('/api/files', require('./routes/fileRoutes'));
+app.use('/api/profile', require('./routes/profileRoutes'));
+
 
 // Error handler (must be last)
 app.use(errorHandler);

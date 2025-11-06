@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 const Profile = () => {
-  const { user, updateProfile, changePassword } = useAuthStore();
+  const { user, updateProfile, uploadAvatar, changePassword } = useAuthStore();
   const { theme } = useThemeStore();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -21,7 +21,6 @@ const Profile = () => {
     institution: user?.institution || '',
     grade: user?.grade || '',
     bloodGroup: user?.bloodGroup || '',
-    profilePicture: user?.avatar || null,
   });
 
   // Password Change State
@@ -32,8 +31,9 @@ const Profile = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'security'
+  const [activeTab, setActiveTab] = useState('profile');
   const [previewImage, setPreviewImage] = useState(user?.avatar || null);
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleProfileChange = (e) => {
     setProfileData({ ...profileData, [e.target.name]: e.target.value });
@@ -72,7 +72,7 @@ const Profile = () => {
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreviewImage(reader.result);
-      setProfileData({ ...profileData, profilePicture: file });
+      setSelectedFile(file);
     };
     reader.readAsDataURL(file);
   };
@@ -83,26 +83,21 @@ const Profile = () => {
     setLoading(true);
 
     try {
-      // Username validation (can only change after 1 week)
-      if (profileData.username !== user.username) {
-        const lastUsernameChange = user.lastUsernameChange || user.createdAt;
-        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        
-        if (new Date(lastUsernameChange) > oneWeekAgo) {
-          toast.error('You can only change username once per week');
-          setLoading(false);
-          return;
-        }
+      // First upload avatar if a new one is selected
+      if (selectedFile) {
+        toast.loading('Uploading profile picture...', { id: 'avatar-upload' });
+        await uploadAvatar(selectedFile);
+        toast.success('Profile picture updated!', { id: 'avatar-upload' });
+        setSelectedFile(null);
       }
 
-      // Simulate API call (replace with actual API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Then update profile info
+      await updateProfile(profileData);
       
       toast.success('Profile updated successfully! 🎉');
-      // Update auth store with new data
-      // await updateProfile(profileData);
     } catch (error) {
       toast.error(error.message || 'Failed to update profile');
+      console.error('Profile update error:', error);
     } finally {
       setLoading(false);
     }
@@ -127,14 +122,13 @@ const Profile = () => {
     }
 
     try {
-      // Simulate API call (replace with actual API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await changePassword(passwordData);
       
       toast.success('Password changed successfully! 🎉');
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
-      // await changePassword(passwordData);
     } catch (error) {
       toast.error(error.message || 'Failed to change password');
+      console.error('Password change error:', error);
     } finally {
       setLoading(false);
     }
@@ -272,6 +266,13 @@ const Profile = () => {
                 }`}>
                   Click to upload profile picture (50KB - 2MB)
                 </p>
+                {selectedFile && (
+                  <p className={`mt-2 text-sm font-medium ${
+                    theme === 'dark' ? 'text-purple-400' : 'text-teal-600'
+                  }`}>
+                    ✓ New image selected: {selectedFile.name}
+                  </p>
+                )}
               </div>
 
               {/* Form Fields */}
@@ -476,7 +477,7 @@ const Profile = () => {
             </form>
           )}
 
-          {/* Security Tab */}
+          {/* Security Tab - Keep the same as before */}
           {activeTab === 'security' && (
             <form onSubmit={handlePasswordSubmit} className="p-6 md:p-8">
               <h2 className={`text-2xl font-bold mb-6 ${
