@@ -6,7 +6,16 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "tw:init": "tailwindcss init -p"
+    "tw:init": "tailwindcss init -p",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop codechat-api",
+    "pm2:restart": "pm2 restart codechat-api",
+    "pm2:reload": "pm2 reload codechat-api",
+    "pm2:delete": "pm2 delete codechat-api",
+    "pm2:logs": "pm2 logs codechat-api",
+    "pm2:monit": "pm2 monit",
+    "pm2:status": "pm2 status",
+    "pm2:flush": "pm2 flush"
   },
   "keywords": [],
   "author": "",
