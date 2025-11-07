@@ -2,12 +2,45 @@ import { create } from 'zustand';
 import axios from 'axios';
 import { API_URL } from '../utils/constants';
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
   user: JSON.parse(localStorage.getItem('user')) || null,
   token: localStorage.getItem('token') || null,
   isAuthenticated: !!localStorage.getItem('token'),
   loading: false,
   error: null,
+
+  // Check authentication status (called on app load)
+  checkAuth: () => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    if (token && user) {
+      try {
+        const parsedUser = JSON.parse(user);
+        set({
+          user: parsedUser,
+          token,
+          isAuthenticated: true,
+        });
+      } catch (error) {
+        console.error('Failed to parse user data:', error);
+        // Clear invalid data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+        });
+      }
+    } else {
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+      });
+    }
+  },
 
   // Register
   register: async (userData) => {

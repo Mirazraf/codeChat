@@ -59,6 +59,8 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/rooms', require('./routes/roomRoutes'));
 app.use('/api/files', require('./routes/fileRoutes'));
 app.use('/api/profile', require('./routes/profileRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+
 
 // Serve frontend in production
 if (config.nodeEnv === 'production') {

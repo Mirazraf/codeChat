@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
@@ -12,9 +12,16 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, loading } = useAuthStore();
+  const { login, loading, isAuthenticated } = useAuthStore();
   const { theme } = useThemeStore();
   const navigate = useNavigate();
+
+  // Redirect if already logged in (double check)
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

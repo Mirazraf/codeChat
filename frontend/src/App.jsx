@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
+import PublicRoute from './components/PublicRoute'; // NEW
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -9,13 +10,16 @@ import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
 import Profile from './pages/Profile';
 import useThemeStore from './store/useThemeStore';
+import useAuthStore from './store/useAuthStore';
 
 function App() {
   const { theme, setTheme } = useThemeStore();
+  const { checkAuth, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    // Initialize theme on app load
+    // Initialize theme and check authentication on app load
     setTheme(theme);
+    checkAuth();
   }, []);
 
   return (
@@ -23,9 +27,28 @@ function App() {
       <div className="App">
         <Navbar />
         <Routes>
+          {/* Home - accessible to all */}
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          
+          {/* Public routes - redirect to dashboard if logged in */}
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicRoute>
+                <Register />
+              </PublicRoute>
+            }
+          />
+          
+          {/* Protected routes - require login */}
           <Route
             path="/dashboard"
             element={
@@ -49,6 +72,12 @@ function App() {
                 <Profile />
               </PrivateRoute>
             }
+          />
+          
+          {/* Catch all - redirect based on auth status */}
+          <Route 
+            path="*" 
+            element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} 
           />
         </Routes>
       </div>
