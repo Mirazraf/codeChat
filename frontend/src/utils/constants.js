@@ -1,4 +1,6 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Dynamic API URL - works for both development and production
+export const API_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
 export const USER_ROLES = {
   STUDENT: 'student',
