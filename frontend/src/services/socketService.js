@@ -1,6 +1,19 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+// Dynamic Socket URL - works for both dev and production
+const getSocketURL = () => {
+  // Production: Use same origin (Render deployment)
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
+  
+  // Development: Try to read port from backend's port file
+  const savedPort = localStorage.getItem('backend-port') || '5000';
+  return `http://localhost:${savedPort}`;
+};
+
+const SOCKET_URL = getSocketURL();
+console.log('🔌 Socket URL:', SOCKET_URL);
 
 class SocketService {
   constructor() {
@@ -10,8 +23,11 @@ class SocketService {
   connect(userId) {
     if (!this.socket) {
       this.socket = io(SOCKET_URL, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'], // Add polling fallback
         autoConnect: true,
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
       });
 
       this.socket.on('connect', () => {
@@ -24,8 +40,12 @@ class SocketService {
         console.log('❌ Socket disconnected');
       });
 
+      this.socket.on('connect_error', (error) => {
+        console.error('❌ Socket connection error:', error);
+      });
+
       this.socket.on('error', (error) => {
-        console.error('Socket error:', error);
+        console.error('❌ Socket error:', error);
       });
     }
     return this.socket;
@@ -80,21 +100,21 @@ class SocketService {
     }
   }
 
-  // NEW: Add reaction to message
+  // Add reaction to message
   addReaction(messageId, userId, emoji, roomId) {
     if (this.socket) {
       this.socket.emit('addReaction', { messageId, userId, emoji, roomId });
     }
   }
 
-  // NEW: Remove reaction from message
+  // Remove reaction from message
   removeReaction(messageId, userId, emoji, roomId) {
     if (this.socket) {
       this.socket.emit('removeReaction', { messageId, userId, emoji, roomId });
     }
   }
 
-  // NEW: Listen for reaction updates
+  // Listen for reaction updates
   onReactionUpdate(callback) {
     if (this.socket) {
       this.socket.on('reactionUpdate', callback);

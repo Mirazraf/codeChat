@@ -29,7 +29,7 @@ const server = http.createServer(app);
 // Socket.io setup with CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL || '*',
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -45,33 +45,48 @@ app.set('io', io);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: config.nodeEnv === 'production' ? false : undefined,
+}));
 
 if (config.nodeEnv === 'development') {
   app.use(morgan('dev'));
 }
 
-// Routes
-app.get('/', (req, res) => {
-  res.json({
-    message: 'CodeChat API is running...',
-    env: config.nodeEnv,
-    jwtConfigured: !!process.env.JWT_SECRET,
-    socketConnected: true,
-    port: server.address()?.port || config.port,
-  });
-});
-
+// API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/rooms', require('./routes/roomRoutes'));
 app.use('/api/files', require('./routes/fileRoutes'));
 app.use('/api/profile', require('./routes/profileRoutes'));
 
+// Serve frontend in production
+if (config.nodeEnv === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  
+  // Serve static files
+  app.use(express.static(frontendPath));
+  
+  // Handle React routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+} else {
+  // Development mode - API status
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'CodeChat API is running...',
+      env: config.nodeEnv,
+      jwtConfigured: !!process.env.JWT_SECRET,
+      socketConnected: true,
+    });
+  });
+}
+
 // Error handler (must be last)
 app.use(errorHandler);
 
-// Function to find available port
+// Function to find available port (LOCAL DEVELOPMENT ONLY)
 const findAvailablePort = (startPort, maxAttempts = 10) => {
   return new Promise((resolve, reject) => {
     let currentPort = startPort;
@@ -109,21 +124,34 @@ const findAvailablePort = (startPort, maxAttempts = 10) => {
   });
 };
 
-// Start server with auto-port selection
+// Start server with SMART MODE DETECTION
 const startServer = async () => {
   try {
     const desiredPort = config.port || 5000;
-    const availablePort = await findAvailablePort(desiredPort);
+    let finalPort;
+
+    // PRODUCTION MODE: Use exact PORT from environment
+    if (config.nodeEnv === 'production') {
+      finalPort = desiredPort;
+      console.log('🏭 PRODUCTION MODE: Using fixed PORT');
+    } 
+    // DEVELOPMENT MODE: Auto-find available port
+    else {
+      finalPort = await findAvailablePort(desiredPort);
+      
+      // Save port file for frontend (development only)
+      const portFile = path.join(__dirname, '../../.server-port');
+      fs.writeFileSync(portFile, finalPort.toString());
+      console.log(`📝 Port ${finalPort} saved to .server-port`);
+    }
     
-    server.listen(availablePort, () => {
-      console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${availablePort}`);
+    server.listen(finalPort, () => {
+      console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${finalPort}`);
       console.log(`✅ JWT Secret configured: ${!!process.env.JWT_SECRET}`);
       console.log(`✅ Socket.io initialized`);
-      
-      // Save port to file for frontend to read
-      const portFile = path.join(__dirname, '../../.server-port');
-      fs.writeFileSync(portFile, availablePort.toString());
-      console.log(`📝 Port ${availablePort} saved to .server-port`);
+      if (config.nodeEnv === 'production') {
+        console.log(`🌐 Serving frontend from: frontend/dist`);
+      }
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
@@ -142,10 +170,15 @@ process.on('unhandledRejection', (err, promise) => {
 // Cleanup on exit
 process.on('SIGINT', () => {
   console.log('\n⚠️ Shutting down gracefully...');
-  const portFile = path.join(__dirname, '../../.server-port');
-  if (fs.existsSync(portFile)) {
-    fs.unlinkSync(portFile);
+  
+  // Clean up port file (development only)
+  if (config.nodeEnv !== 'production') {
+    const portFile = path.join(__dirname, '../../.server-port');
+    if (fs.existsSync(portFile)) {
+      fs.unlinkSync(portFile);
+    }
   }
+  
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
