@@ -1,12 +1,38 @@
 const User = require('../models/User');
 const { cloudinary } = require('../config/cloudinary');
 
+// @desc    Get user profile with completion percentage
+// @route   GET /api/profile
+// @access  Private
+const getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const profileCompletion = user.getProfileCompletion();
+
+    res.json({
+      success: true,
+      data: {
+        ...user.toObject(),
+        profileCompletion,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Get profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // @desc    Update user profile
 // @route   PUT /api/profile
 // @access  Private
 const updateProfile = async (req, res) => {
   try {
-    const { username, institution, grade, bloodGroup } = req.body;
+    const updateData = req.body;
     
     const user = await User.findById(req.user._id);
     
@@ -15,8 +41,7 @@ const updateProfile = async (req, res) => {
     }
 
     // Check if username is being changed
-    if (username && username !== user.username) {
-      // Check if enough time has passed (1 week)
+    if (updateData.username && updateData.username !== user.username) {
       const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       
       if (user.lastUsernameChange && new Date(user.lastUsernameChange) > oneWeekAgo) {
@@ -25,35 +50,71 @@ const updateProfile = async (req, res) => {
         });
       }
 
-      // Check if username is already taken
-      const usernameExists = await User.findOne({ username });
+      const usernameExists = await User.findOne({ username: updateData.username });
       if (usernameExists && usernameExists._id.toString() !== user._id.toString()) {
         return res.status(400).json({ message: 'Username already taken' });
       }
 
-      user.username = username;
+      user.username = updateData.username;
       user.lastUsernameChange = Date.now();
     }
 
-    // Update other fields
-    if (institution !== undefined) user.institution = institution;
-    if (grade !== undefined) user.grade = grade;
-    if (bloodGroup !== undefined) user.bloodGroup = bloodGroup;
+    // Update universal fields
+    if (updateData.fullName !== undefined) user.fullName = updateData.fullName;
+    if (updateData.phoneNumber !== undefined) user.phoneNumber = updateData.phoneNumber;
+    if (updateData.countryCode !== undefined) user.countryCode = updateData.countryCode;
+    if (updateData.gender !== undefined) user.gender = updateData.gender;
+    if (updateData.dateOfBirth !== undefined) user.dateOfBirth = updateData.dateOfBirth;
+    if (updateData.bloodGroup !== undefined) user.bloodGroup = updateData.bloodGroup;
+    if (updateData.bio !== undefined) user.bio = updateData.bio;
+    
+    // Update location
+    if (updateData.location) {
+      user.location = {
+        city: updateData.location.city || user.location.city,
+        country: updateData.location.country || user.location.country,
+        fullLocation: updateData.location.fullLocation || user.location.fullLocation,
+      };
+    }
+    
+    // Update social links
+    if (updateData.socialLinks) {
+      user.socialLinks = {
+        linkedin: updateData.socialLinks.linkedin || user.socialLinks.linkedin,
+        github: updateData.socialLinks.github || user.socialLinks.github,
+        portfolio: updateData.socialLinks.portfolio || user.socialLinks.portfolio,
+        facebook: updateData.socialLinks.facebook || user.socialLinks.facebook,
+        twitter: updateData.socialLinks.twitter || user.socialLinks.twitter,
+      };
+    }
+    
+    // Update role-specific fields
+    if (user.role === 'student' && updateData.studentInfo) {
+      user.studentInfo = {
+        institution: updateData.studentInfo.institution || user.studentInfo.institution,
+        educationLevel: updateData.studentInfo.educationLevel || user.studentInfo.educationLevel,
+        major: updateData.studentInfo.major || user.studentInfo.major,
+        preferredTopics: updateData.studentInfo.preferredTopics || user.studentInfo.preferredTopics,
+      };
+    } else if (user.role === 'teacher' && updateData.teacherInfo) {
+      user.teacherInfo = {
+        education: updateData.teacherInfo.education || user.teacherInfo.education,
+        expertise: updateData.teacherInfo.expertise || user.teacherInfo.expertise,
+        experienceYears: updateData.teacherInfo.experienceYears !== undefined 
+          ? updateData.teacherInfo.experienceYears 
+          : user.teacherInfo.experienceYears,
+      };
+    }
 
     await user.save();
+
+    const profileCompletion = user.getProfileCompletion();
 
     res.json({
       success: true,
       data: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        institution: user.institution,
-        grade: user.grade,
-        bloodGroup: user.bloodGroup,
-        lastUsernameChange: user.lastUsernameChange,
+        ...user.toObject(),
+        profileCompletion,
       },
     });
   } catch (error) {
@@ -62,71 +123,54 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// @desc    Upload profile picture to Cloudinary
+// @desc    Upload profile picture
 // @route   POST /api/profile/avatar
 // @access  Private
 const uploadAvatar = async (req, res) => {
   try {
     console.log('📸 Avatar upload request received');
-    console.log('👤 User ID:', req.user._id);
-    console.log('📁 File info:', req.file ? {
-      fieldname: req.file.fieldname,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : 'NO FILE');
 
     if (!req.file) {
-      console.log('❌ No file received');
       return res.status(400).json({ message: 'Please upload an image' });
     }
 
     const user = await User.findById(req.user._id);
     
     if (!user) {
-      console.log('❌ User not found');
       return res.status(404).json({ message: 'User not found' });
     }
-
-    console.log('✅ User found:', user.username);
-    console.log('📤 Uploaded to Cloudinary:', req.file.path);
 
     // Delete old avatar from cloudinary if it exists
     if (user.avatar && user.avatar.includes('cloudinary.com')) {
       try {
-        // Extract public_id from cloudinary URL
         const urlParts = user.avatar.split('/');
         const lastPart = urlParts[urlParts.length - 1];
         const publicIdWithExtension = lastPart.split('.')[0];
         const publicId = `codechat/avatars/${publicIdWithExtension}`;
         
-        console.log('🗑️ Attempting to delete old avatar:', publicId);
-        const result = await cloudinary.uploader.destroy(publicId);
-        console.log('✅ Old avatar deletion result:', result);
+        await cloudinary.uploader.destroy(publicId);
+        console.log('✅ Old avatar deleted');
       } catch (err) {
         console.error('⚠️ Error deleting old avatar:', err.message);
-        // Continue even if deletion fails
       }
     }
 
-    // Update user avatar
-    const oldAvatar = user.avatar;
-    user.avatar = req.file.path; // Cloudinary URL
+    user.avatar = req.file.path;
     await user.save();
 
-    console.log('✅ Avatar updated in database');
-    console.log('🔄 Old:', oldAvatar);
-    console.log('🆕 New:', user.avatar);
+    console.log('✅ Avatar updated successfully');
+
+    const profileCompletion = user.getProfileCompletion();
 
     res.json({
       success: true,
       data: {
         avatar: user.avatar,
+        profileCompletion,
       },
     });
   } catch (error) {
     console.error('❌ Upload avatar error:', error);
-    console.error('Stack:', error.stack);
     res.status(500).json({ 
       message: 'Server error',
       error: error.message 
@@ -159,7 +203,6 @@ const changePassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if old password matches
     const isMatch = await user.matchPassword(oldPassword);
     
     if (!isMatch) {
@@ -182,6 +225,7 @@ const changePassword = async (req, res) => {
 };
 
 module.exports = {
+  getProfile,
   updateProfile,
   uploadAvatar,
   changePassword,
