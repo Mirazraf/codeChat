@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
 import toast, { Toaster } from 'react-hot-toast';
+import PageTitle from '../components/PageTitle';
+
 import { 
   User, Mail, Lock, Camera, Save, ArrowLeft, 
   School, GraduationCap, Droplet, Shield, Globe,
@@ -289,6 +291,8 @@ const Profile = () => {
   };
 
   return (
+  <>
+  <PageTitle title="My Profile" description={`${user?.username}'s profile`} />
     <div className={`min-h-screen pt-20 pb-12 px-4 ${
       theme === 'dark'
         ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
@@ -1382,6 +1386,7 @@ const Profile = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

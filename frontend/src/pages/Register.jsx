@@ -4,6 +4,8 @@ import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
 import toast, { Toaster } from 'react-hot-toast';
 import { Eye, EyeOff, ArrowRight, Code2 } from 'lucide-react';
+import PageTitle from '../components/PageTitle';
+
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -57,6 +59,8 @@ const Register = () => {
   };
 
   return (
+  <>
+  <PageTitle title="Sign Up" description="Create your free CodeChat account" />
     <div className={`min-h-screen flex items-center justify-center p-4 ${
       theme === 'dark' 
         ? 'bg-[#2d2d3d]' 
@@ -377,6 +381,7 @@ const Register = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

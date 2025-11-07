@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import PrivateRoute from './components/PrivateRoute';
-import PublicRoute from './components/PublicRoute'; // NEW
+import PublicRoute from './components/PublicRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -11,6 +11,17 @@ import ChatPage from './pages/ChatPage';
 import Profile from './pages/Profile';
 import useThemeStore from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
+
+// Scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
 
 function App() {
   const { theme, setTheme } = useThemeStore();
@@ -24,6 +35,7 @@ function App() {
 
   return (
     <Router>
+      <ScrollToTop />
       <div className="App">
         <Navbar />
         <Routes>

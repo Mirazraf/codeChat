@@ -4,6 +4,8 @@ import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
 import toast, { Toaster } from 'react-hot-toast';
 import { Eye, EyeOff, ArrowRight, Code2 } from 'lucide-react';
+import PageTitle from '../components/PageTitle';
+
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -46,6 +48,9 @@ const Login = () => {
   };
 
   return (
+    <>
+    <PageTitle title="Login" description="Sign in to your CodeChat account" />
+
     <div className={`min-h-screen flex items-center justify-center p-4 ${
       theme === 'dark' 
         ? 'bg-[#2d2d3d]' 
@@ -269,6 +274,7 @@ const Login = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

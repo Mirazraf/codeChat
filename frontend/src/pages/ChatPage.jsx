@@ -10,6 +10,8 @@ import OnlineUsers from '../components/chat/OnlineUsers';
 import CreateRoomModal from '../components/chat/CreateRoomModal';
 import toast, { Toaster } from 'react-hot-toast';
 import ToastProvider from '../components/common/ToastProvider';
+import PageTitle from '../components/PageTitle';
+
 
 
 const ChatPage = () => {
@@ -73,6 +75,8 @@ const ChatPage = () => {
   }, [user, navigate]);
 
   return (
+  <>
+    <PageTitle title={currentRoom?.name ? `${currentRoom.name} - Chat` : 'Chat'} />
     <div 
       className={`fixed inset-0 flex flex-col overflow-hidden ${
         theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'
@@ -139,6 +143,7 @@ const ChatPage = () => {
         <CreateRoomModal onClose={() => setShowCreateModal(false)} />
       )}
     </div>
+    </>
   );
 };
 

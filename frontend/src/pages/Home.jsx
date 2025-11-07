@@ -2,12 +2,19 @@ import { Link } from 'react-router-dom';
 import { Code2, Users, MessageSquare, Zap, ArrowRight, Sparkles, Shield, Rocket } from 'lucide-react';
 import useThemeStore from '../store/useThemeStore';
 import useAuthStore from '../store/useAuthStore';
+import PageTitle from '../components/PageTitle';
+
 
 const Home = () => {
   const { theme } = useThemeStore();
   const { isAuthenticated } = useAuthStore();
 
   return (
+    <>
+      <PageTitle 
+        title="Home" 
+        description="Join thousands of developers collaborating in real-time. Share code, chat, and learn together on CodeChat." 
+      />
     <div className={`min-h-screen pt-16 ${
       theme === 'dark' 
         ? 'bg-[#2d2d3d]' 
@@ -345,6 +352,7 @@ const Home = () => {
         </div>
       </section>
     </div>
+  </>
   );
 };
 

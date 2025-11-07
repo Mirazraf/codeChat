@@ -4,6 +4,8 @@ import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
 import useChatStore from '../store/useChatStore';
 import { dashboardService } from '../services/dashboardService';
+import PageTitle from '../components/PageTitle';
+
 import { 
   Code2, 
   Users, 
@@ -162,6 +164,8 @@ const Dashboard = () => {
   }
 
   return (
+  <>
+  <PageTitle title={`Dashboard`} description={`Welcome back, ${user?.username}!`} />
     <div className={`min-h-screen pt-16 ${
       theme === 'dark' 
         ? 'bg-[#2d2d3d]' 
@@ -537,6 +541,7 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
