@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { format } from 'date-fns';
 import { Reply } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
@@ -8,6 +7,7 @@ import socketService from '../../services/socketService';
 import CodeSnippet from './CodeSnippet';
 import FileMessage from './FileMessage';
 import MessageReactions from './MessageReactions';
+import formatDate from '../../utils/formatDate';
 import { highlightMentions, isUserMentioned } from '../../utils/mentionUtils';
 
 const MessageList = () => {
@@ -300,7 +300,7 @@ const MessageList = () => {
                   <span className={`text-xs ${
                     theme === 'dark' ? 'text-gray-500' : 'text-gray-600'
                   }`}>
-                    {format(new Date(message.createdAt), 'HH:mm')}
+                    {formatDate(message.createdAt)}
                   </span>
                 </div>
               </div>

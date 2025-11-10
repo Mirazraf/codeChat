@@ -5,6 +5,7 @@ import useThemeStore from '../../store/useThemeStore';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import formatDate from '../../utils/formatDate';
 
 const Message = ({ message }) => {
   const { user } = useAuthStore();
@@ -253,10 +254,7 @@ const Message = ({ message }) => {
           <span className={`text-xs ${
             isOwnMessage ? 'text-right mr-2' : 'ml-2'
           } ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
-            {new Date(message.createdAt).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {formatDate(message.createdAt)}
           </span>
         </div>
       </div>
