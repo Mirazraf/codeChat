@@ -16,7 +16,9 @@ const MessageList = () => {
   const { theme } = useThemeStore();
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const messageRefs = useRef({});
   const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const previousMessageCountRef = useRef(messages.length);
 
   // Scroll to bottom function
@@ -94,16 +96,33 @@ const MessageList = () => {
     setReplyingTo(message);
   };
 
+  // Scroll to replied message and highlight it
+  const scrollToMessage = (messageId) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(messageId);
+      
+      // Remove highlight after 2 seconds
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
+    }
+  };
+
   // Render replied message preview
   const renderRepliedMessage = (replyTo) => {
     if (!replyTo) return null;
 
     return (
-      <div className={`mb-2 pl-3 border-l-2 rounded p-2 ${
-        theme === 'dark'
-          ? 'border-purple-500 bg-purple-900/20'
-          : 'border-teal-500 bg-teal-50'
-      }`}>
+      <div 
+        onClick={() => scrollToMessage(replyTo._id)}
+        className={`mb-2 pl-3 border-l-2 rounded p-2 cursor-pointer transition-all hover:scale-[1.02] ${
+          theme === 'dark'
+            ? 'border-purple-500 bg-purple-900/20 hover:bg-purple-900/30'
+            : 'border-teal-500 bg-teal-50 hover:bg-teal-100'
+        }`}
+      >
         <div className="flex items-center gap-2 mb-1">
           <Reply className={`w-3 h-3 ${
             theme === 'dark' ? 'text-purple-400' : 'text-teal-600'
@@ -229,6 +248,7 @@ const MessageList = () => {
             return (
               <div
                 key={message._id}
+                ref={(el) => (messageRefs.current[message._id] = el)}
                 className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} group`}
               >
                 {/* Sender name (only for others' messages) */}
@@ -245,7 +265,13 @@ const MessageList = () => {
                 {/* Message bubble */}
                 <div className={`max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'} flex flex-col`}>
                   <div
-                    className={`${
+                    className={`transition-all duration-500 ${
+                      highlightedMessageId === message._id
+                        ? theme === 'dark'
+                          ? 'ring-2 ring-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)] animate-pulse'
+                          : 'ring-2 ring-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)] animate-pulse'
+                        : ''
+                    } ${
                       isFileOrImage && !message.content
                         ? ''
                         : isOwnMessage
