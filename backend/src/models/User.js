@@ -122,6 +122,20 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    lastReadMessages: [{
+      room: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Room',
+      },
+      message: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Message',
+      },
+      readAt: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
   },
   {
     timestamps: true,

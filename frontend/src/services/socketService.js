@@ -121,6 +121,13 @@ class SocketService {
     }
   }
 
+  // Listen for room updates
+  onRoomUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('roomUpdate', callback);
+    }
+  }
+
   getSocket() {
     return this.socket;
   }

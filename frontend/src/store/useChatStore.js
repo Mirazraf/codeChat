@@ -102,16 +102,64 @@ const useChatStore = create((set, get) => ({
         replyingTo: null,
       });
       socketService.joinRoom(room._id, userId);
+      
+      // Mark room as read
+      await roomService.markRoomAsRead(room._id);
+      
+      // Update rooms list to reflect read status
+      set((state) => ({
+        rooms: state.rooms.map((r) =>
+          r._id === room._id ? { ...r, hasUnread: false } : r
+        ),
+      }));
     } catch (error) {
       console.error('Error setting current room:', error);
     }
   },
 
   // Add a message to current room
-  addMessage: (message) => {
-    set((state) => ({
-      messages: [...state.messages, message],
-    }));
+  addMessage: (message, currentUserId) => {
+    set((state) => {
+      const newMessages = [...state.messages, message];
+      
+      // Don't update room list for system messages
+      if (message.type === 'system') {
+        return { messages: newMessages };
+      }
+      
+      // Check if this message is from the current user
+      const isOwnMessage = message.sender?._id === currentUserId || message.sender === currentUserId;
+      
+      // Update room's lastMessage in rooms list
+      const updatedRooms = state.rooms.map((room) => {
+        if (room._id === message.room) {
+          // Only mark as unread if:
+          // 1. It's not the current room AND
+          // 2. It's not the user's own message
+          const shouldMarkUnread = room._id !== state.currentRoom?._id && !isOwnMessage;
+          
+          return {
+            ...room,
+            lastMessage: message,
+            lastActivity: message.createdAt || new Date(),
+            hasUnread: shouldMarkUnread,
+          };
+        }
+        return room;
+      });
+      
+      // Sort rooms by lastActivity (most recent first)
+      const sortedRooms = updatedRooms.sort((a, b) => {
+        const dateA = new Date(a.lastActivity || a.updatedAt);
+        const dateB = new Date(b.lastActivity || b.updatedAt);
+        return dateB - dateA;
+      });
+      
+      return {
+        messages: newMessages,
+        rooms: sortedRooms,
+      };
+    });
   },
 
   // Send a message
@@ -149,6 +197,41 @@ const useChatStore = create((set, get) => ({
         msg._id === messageId ? { ...msg, reactions } : msg
       ),
     }));
+  },
+
+  // Update a single room in the list
+  updateRoom: (updatedRoom, currentUserId) => {
+    set((state) => {
+      // Check if message is from current user
+      const isOwnMessage = updatedRoom.lastMessage?.sender?._id === currentUserId;
+      
+      // Calculate hasUnread
+      const roomWithUnread = {
+        ...updatedRoom,
+        hasUnread: updatedRoom._id !== state.currentRoom?._id && !isOwnMessage,
+      };
+      
+      // Update or add the room
+      const roomExists = state.rooms.find(r => r._id === updatedRoom._id);
+      let updatedRooms;
+      
+      if (roomExists) {
+        updatedRooms = state.rooms.map(r => 
+          r._id === updatedRoom._id ? roomWithUnread : r
+        );
+      } else {
+        updatedRooms = [...state.rooms, roomWithUnread];
+      }
+      
+      // Sort by lastActivity
+      const sortedRooms = updatedRooms.sort((a, b) => {
+        const dateA = new Date(a.lastActivity || a.updatedAt);
+        const dateB = new Date(b.lastActivity || b.updatedAt);
+        return dateB - dateA;
+      });
+      
+      return { rooms: sortedRooms };
+    });
   },
 
   // NEW: Set replying to message

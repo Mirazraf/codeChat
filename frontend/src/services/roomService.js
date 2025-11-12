@@ -37,4 +37,9 @@ export const roomService = {
     const response = await api.delete(`/rooms/${roomId}`);
     return response.data;
   },
+
+  markRoomAsRead: async (roomId) => {
+    const response = await api.post(`/rooms/${roomId}/read`);
+    return response.data;
+  },
 };

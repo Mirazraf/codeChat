@@ -6,6 +6,9 @@ const Message = require('../models/Message');
 // @access  Private
 const getRooms = async (req, res) => {
   try {
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    
     const rooms = await Room.find({
       $or: [
         { type: 'public' },
@@ -15,12 +18,52 @@ const getRooms = async (req, res) => {
     })
       .populate('creator', 'username email avatar role')
       .populate('members', 'username email avatar role')
+      .populate({
+        path: 'lastMessage',
+        populate: {
+          path: 'sender',
+          select: 'username avatar',
+        },
+      })
       .sort('-lastActivity');
+
+    // Add hasUnread flag to each room
+    const roomsWithUnread = rooms.map((room) => {
+      const roomObj = room.toObject();
+      
+      if (roomObj.lastMessage) {
+        // Don't mark as unread if:
+        // 1. It's the user's own message, OR
+        // 2. It's a system message
+        const isOwnMessage = roomObj.lastMessage.sender && 
+          roomObj.lastMessage.sender._id.toString() === req.user.id;
+        const isSystemMessage = roomObj.lastMessage.type === 'system';
+        
+        if (isOwnMessage || isSystemMessage) {
+          roomObj.hasUnread = false;
+        } else {
+          // Find user's last read message for this room
+          const lastRead = user.lastReadMessages.find(
+            (lrm) => lrm.room.toString() === room._id.toString()
+          );
+          
+          // Room has unread if there's a lastMessage and either:
+          // 1. User has never read this room, OR
+          // 2. The lastMessage is newer than the last read message
+          roomObj.hasUnread = !lastRead || 
+            (lastRead.message.toString() !== roomObj.lastMessage._id.toString());
+        }
+      } else {
+        roomObj.hasUnread = false;
+      }
+      
+      return roomObj;
+    });
 
     res.json({
       success: true,
-      count: rooms.length,
-      data: rooms,
+      count: roomsWithUnread.length,
+      data: roomsWithUnread,
     });
   } catch (error) {
     res.status(500).json({
@@ -289,6 +332,60 @@ const deleteRoom = async (req, res) => {
   }
 };
 
+// @desc    Mark room messages as read
+// @route   POST /api/rooms/:id/read
+// @access  Private
+const markRoomAsRead = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found',
+      });
+    }
+
+    // Get the last message in the room
+    const lastMessage = await Message.findOne({ room: req.params.id })
+      .sort('-createdAt')
+      .limit(1);
+
+    if (lastMessage) {
+      const User = require('../models/User');
+      const user = await User.findById(req.user.id);
+
+      // Update or add lastReadMessage for this room
+      const existingReadIndex = user.lastReadMessages.findIndex(
+        (lrm) => lrm.room.toString() === req.params.id
+      );
+
+      if (existingReadIndex !== -1) {
+        user.lastReadMessages[existingReadIndex].message = lastMessage._id;
+        user.lastReadMessages[existingReadIndex].readAt = new Date();
+      } else {
+        user.lastReadMessages.push({
+          room: req.params.id,
+          message: lastMessage._id,
+          readAt: new Date(),
+        });
+      }
+
+      await user.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Room marked as read',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getRooms,
   getRoom,
@@ -297,4 +394,5 @@ module.exports = {
   leaveRoom,
   getRoomMessages,
   deleteRoom,
+  markRoomAsRead,
 };

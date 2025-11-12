@@ -52,8 +52,9 @@ const socketHandler = (io) => {
         socket.join(roomId);
         socket.currentRoom = roomId;
 
-        // Send system message
+        // Send system message (broadcast only, don't save to DB)
         const systemMessage = {
+          _id: `system-${Date.now()}`,
           room: roomId,
           sender: null,
           content: `${user.username} joined the room`,
@@ -81,8 +82,9 @@ const socketHandler = (io) => {
         socket.leave(roomId);
         socket.currentRoom = null;
 
-        // Send system message
+        // Send system message (broadcast only, don't save to DB)
         const systemMessage = {
+          _id: `system-${Date.now()}`,
           room: roomId,
           sender: null,
           content: `${user.username} left the room`,
@@ -128,13 +130,58 @@ const socketHandler = (io) => {
             },
           });
 
-        // Update room last activity
-        await Room.findByIdAndUpdate(roomId, {
-          lastActivity: new Date(),
-        });
+        // Update room last activity and last message (only for non-system messages)
+        if (type !== 'system') {
+          await Room.findByIdAndUpdate(roomId, {
+            lastActivity: new Date(),
+            lastMessage: message._id,
+          });
+        } else {
+          // For system messages, only update lastActivity
+          await Room.findByIdAndUpdate(roomId, {
+            lastActivity: new Date(),
+          });
+        }
+
+        // Auto-mark as read for the sender
+        const sender = await User.findById(userId);
+        if (sender) {
+          const existingReadIndex = sender.lastReadMessages.findIndex(
+            (lrm) => lrm.room.toString() === roomId
+          );
+
+          if (existingReadIndex !== -1) {
+            sender.lastReadMessages[existingReadIndex].message = message._id;
+            sender.lastReadMessages[existingReadIndex].readAt = new Date();
+          } else {
+            sender.lastReadMessages.push({
+              room: roomId,
+              message: message._id,
+              readAt: new Date(),
+            });
+          }
+
+          await sender.save();
+        }
 
         // Broadcast message to room
         io.to(roomId).emit('message', populatedMessage);
+
+        // Emit room update to all users in the room (for sidebar updates)
+        if (type !== 'system') {
+          const updatedRoom = await Room.findById(roomId)
+            .populate('creator', 'username email avatar role')
+            .populate('members', 'username email avatar role')
+            .populate({
+              path: 'lastMessage',
+              populate: {
+                path: 'sender',
+                select: 'username avatar',
+              },
+            });
+          
+          io.emit('roomUpdate', updatedRoom);
+        }
       } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });

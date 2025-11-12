@@ -25,6 +25,7 @@ const ChatPage = () => {
     setOnlineUsers,
     setTypingUser,
     leaveRoom,
+    updateRoom,
   } = useChatStore();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -50,7 +51,7 @@ const ChatPage = () => {
 
     // Listen for messages
     socketService.onMessage((message) => {
-      addMessage(message);
+      addMessage(message, user._id);
     });
 
     // Listen for online users
@@ -61,6 +62,11 @@ const ChatPage = () => {
     // Listen for typing indicators
     socketService.onUserTyping(({ username, isTyping }) => {
       setTypingUser(username, isTyping);
+    });
+
+    // Listen for room updates (for sidebar real-time updates)
+    socketService.onRoomUpdate((room) => {
+      updateRoom(room, user._id);
     });
 
     // Cleanup on unmount - leave room when navigating away

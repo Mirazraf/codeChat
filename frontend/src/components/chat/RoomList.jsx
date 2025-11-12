@@ -2,6 +2,7 @@ import { Users, Hash, Lock } from 'lucide-react';
 import useChatStore from '../../store/useChatStore';
 import useAuthStore from '../../store/useAuthStore';
 import useThemeStore from '../../store/useThemeStore';
+import formatDate from '../../utils/formatDate';
 
 const RoomList = ({ rooms, currentRoom }) => {
   const { setCurrentRoom, leaveRoom } = useChatStore();
@@ -26,6 +27,49 @@ const RoomList = ({ rooms, currentRoom }) => {
     }
   };
 
+  const getLastMessagePreview = (lastMessage) => {
+    if (!lastMessage) return 'No messages yet';
+    
+    const isOwnMessage = lastMessage.sender?._id === user._id;
+    const senderName = isOwnMessage ? 'You' : lastMessage.sender?.username || 'Unknown';
+    
+    if (lastMessage.type === 'code') {
+      return `${senderName}: 📝 Code snippet`;
+    } else if (lastMessage.type === 'image') {
+      return `${senderName}: 🖼️ Image`;
+    } else if (lastMessage.type === 'file') {
+      return `${senderName}: 📎 ${lastMessage.fileName || 'File'}`;
+    } else if (lastMessage.type === 'system') {
+      return lastMessage.content;
+    }
+    
+    return `${senderName}: ${lastMessage.content}`;
+  };
+
+  const formatLastMessageTime = (date) => {
+    if (!date) return '';
+    
+    const messageDate = new Date(date);
+    const now = new Date();
+    const diffMs = now - messageDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    
+    return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const isRoomUnread = (room) => {
+    // Room is unread if it has a lastMessage and it's not the current room
+    // and the user hasn't read it yet
+    return room.hasUnread && room._id !== currentRoom?._id;
+  };
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="p-2">
@@ -34,49 +78,83 @@ const RoomList = ({ rooms, currentRoom }) => {
         }`}>
           Rooms ({rooms.length})
         </h3>
-        {rooms.map((room) => (
-          <button
-            key={room._id}
-            onClick={() => handleRoomClick(room)}
-            className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition flex items-center space-x-3 ${
-              currentRoom?._id === room._id
-                ? theme === 'dark'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
-                  : 'bg-gray-800 text-white'
-                : theme === 'dark'
-                  ? 'hover:bg-[#2d2d3d] text-gray-300'
-                  : 'hover:bg-gray-100 text-gray-700'
-            }`}
-          >
-            <div
-              className={`${
-                currentRoom?._id === room._id 
-                  ? 'text-white' 
+        {rooms.map((room) => {
+          const hasUnread = isRoomUnread(room);
+          
+          return (
+            <button
+              key={room._id}
+              onClick={() => handleRoomClick(room)}
+              className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition flex items-start space-x-3 relative ${
+                currentRoom?._id === room._id
+                  ? theme === 'dark'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                    : 'bg-gray-800 text-white'
                   : theme === 'dark'
-                    ? 'text-gray-400'
-                    : 'text-gray-500'
+                    ? 'hover:bg-[#2d2d3d] text-gray-300'
+                    : 'hover:bg-gray-100 text-gray-700'
               }`}
             >
-              {getRoomIcon(room.type)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold truncate">{room.name}</div>
               <div
-                className={`text-xs truncate ${
-                  currentRoom?._id === room._id
-                    ? theme === 'dark'
-                      ? 'text-purple-200'
-                      : 'text-gray-300'
+                className={`mt-1 ${
+                  currentRoom?._id === room._id 
+                    ? 'text-white' 
                     : theme === 'dark'
                       ? 'text-gray-400'
                       : 'text-gray-500'
                 }`}
               >
-                {room.members?.length || 0} members
+                {getRoomIcon(room.type)}
               </div>
-            </div>
-          </button>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className={`truncate ${hasUnread ? 'font-bold' : 'font-semibold'}`}>
+                    {room.name}
+                  </div>
+                  {room.lastMessage && (
+                    <span
+                      className={`text-xs ml-2 flex-shrink-0 ${
+                        currentRoom?._id === room._id
+                          ? theme === 'dark'
+                            ? 'text-purple-200'
+                            : 'text-gray-300'
+                          : hasUnread
+                            ? theme === 'dark'
+                              ? 'text-purple-400 font-semibold'
+                              : 'text-teal-600 font-semibold'
+                            : theme === 'dark'
+                              ? 'text-gray-500'
+                              : 'text-gray-400'
+                      }`}
+                    >
+                      {formatLastMessageTime(room.lastMessage.createdAt)}
+                    </span>
+                  )}
+                </div>
+                <div
+                  className={`text-xs truncate ${
+                    hasUnread ? 'font-semibold' : ''
+                  } ${
+                    currentRoom?._id === room._id
+                      ? theme === 'dark'
+                        ? 'text-purple-200'
+                        : 'text-gray-300'
+                      : theme === 'dark'
+                        ? hasUnread ? 'text-gray-200' : 'text-gray-400'
+                        : hasUnread ? 'text-gray-700' : 'text-gray-500'
+                  }`}
+                >
+                  {getLastMessagePreview(room.lastMessage)}
+                </div>
+              </div>
+              {hasUnread && (
+                <div className={`absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${
+                  theme === 'dark' ? 'bg-purple-500' : 'bg-teal-500'
+                }`} />
+              )}
+            </button>
+          );
+        })}
         
         {rooms.length === 0 && (
           <div className={`text-center py-8 ${
