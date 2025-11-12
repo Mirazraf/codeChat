@@ -128,6 +128,20 @@ class SocketService {
     }
   }
 
+  // Mark messages as read
+  markMessagesAsRead(roomId, userId) {
+    if (this.socket) {
+      this.socket.emit('markMessagesAsRead', { roomId, userId });
+    }
+  }
+
+  // Listen for message read updates
+  onMessageReadUpdate(callback) {
+    if (this.socket) {
+      this.socket.on('messageReadUpdate', callback);
+    }
+  }
+
   getSocket() {
     return this.socket;
   }

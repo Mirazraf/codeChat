@@ -268,6 +268,7 @@ const getRoomMessages = async (req, res) => {
           select: 'username avatar',
         },
       })
+      .populate('readBy.user', 'username avatar')
       .sort('-createdAt')
       .limit(limit)
       .skip(skip);

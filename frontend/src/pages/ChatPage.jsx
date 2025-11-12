@@ -26,6 +26,7 @@ const ChatPage = () => {
     setTypingUser,
     leaveRoom,
     updateRoom,
+    updateMessageReadBy,
   } = useChatStore();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -67,6 +68,11 @@ const ChatPage = () => {
     // Listen for room updates (for sidebar real-time updates)
     socketService.onRoomUpdate((room) => {
       updateRoom(room, user._id);
+    });
+
+    // Listen for message read updates
+    socketService.onMessageReadUpdate(({ messageId, readBy }) => {
+      updateMessageReadBy(messageId, readBy);
     });
 
     // Cleanup on unmount - leave room when navigating away

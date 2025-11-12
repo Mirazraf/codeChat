@@ -119,7 +119,7 @@ const socketHandler = (io) => {
           replyTo: replyTo || null, // NEW: Store reply reference
         });
 
-        // Populate sender info AND replied message
+        // Populate sender info, replied message, and readBy
         const populatedMessage = await Message.findById(message._id)
           .populate('sender', 'username email avatar role')
           .populate({
@@ -128,7 +128,8 @@ const socketHandler = (io) => {
               path: 'sender',
               select: 'username avatar',
             },
-          });
+          })
+          .populate('readBy.user', 'username avatar');
 
         // Update room last activity and last message (only for non-system messages)
         if (type !== 'system') {
@@ -197,18 +198,36 @@ const socketHandler = (io) => {
     });
 
     // Handle message read receipts
-    socket.on('messageRead', async ({ messageId, userId }) => {
+    socket.on('markMessagesAsRead', async ({ roomId, userId }) => {
       try {
-        const message = await Message.findById(messageId);
-        if (message) {
+        // Find all messages in the room that the user hasn't read yet
+        const messages = await Message.find({
+          room: roomId,
+          sender: { $ne: userId }, // Don't mark own messages as read
+          'readBy.user': { $ne: userId }, // Not already read by this user
+        });
+
+        // Mark all messages as read
+        for (const message of messages) {
           message.readBy.push({
             user: userId,
             readAt: new Date(),
           });
           await message.save();
+
+          // Populate and emit read receipt update
+          const populatedMessage = await Message.findById(message._id)
+            .populate('readBy.user', 'username avatar');
+
+          io.to(roomId).emit('messageReadUpdate', {
+            messageId: message._id,
+            readBy: populatedMessage.readBy,
+          });
         }
+
+        console.log(`✅ User ${userId} marked ${messages.length} messages as read in room ${roomId}`);
       } catch (error) {
-        console.error('Message read error:', error);
+        console.error('Mark messages as read error:', error);
       }
     });
 

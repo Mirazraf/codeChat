@@ -7,6 +7,7 @@ import socketService from '../../services/socketService';
 import CodeSnippet from './CodeSnippet';
 import FileMessage from './FileMessage';
 import MessageReactions from './MessageReactions';
+import ReadReceipts from './ReadReceipts';
 import formatDate from '../../utils/formatDate';
 import { highlightMentions, isUserMentioned } from '../../utils/mentionUtils';
 
@@ -20,6 +21,7 @@ const MessageList = () => {
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const previousMessageCountRef = useRef(messages.length);
+  const markedAsReadRef = useRef(new Set());
 
   // Scroll to bottom function
   const scrollToBottom = (behavior = 'smooth') => {
@@ -63,8 +65,59 @@ const MessageList = () => {
     if (currentRoom) {
       setIsUserScrolling(false);
       scrollToBottom('auto');
+      markedAsReadRef.current.clear(); // Reset marked messages when changing rooms
     }
   }, [currentRoom?._id]);
+
+  // Mark messages as read when they become visible
+  useEffect(() => {
+    if (!currentRoom || !user) return;
+
+    let markAsReadTimeout;
+    let hasNewVisibleMessages = false;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            const senderId = entry.target.getAttribute('data-sender-id');
+            
+            // Only mark as read if it's not the user's own message and hasn't been marked yet
+            if (messageId && senderId !== user._id && !markedAsReadRef.current.has(messageId)) {
+              markedAsReadRef.current.add(messageId);
+              hasNewVisibleMessages = true;
+            }
+          }
+        });
+
+        // Debounce the mark as read call
+        if (hasNewVisibleMessages) {
+          clearTimeout(markAsReadTimeout);
+          markAsReadTimeout = setTimeout(() => {
+            socketService.markMessagesAsRead(currentRoom._id, user._id);
+            hasNewVisibleMessages = false;
+          }, 500); // Wait 500ms after last visible message
+        }
+      },
+      {
+        root: messagesContainerRef.current,
+        threshold: 0.5, // Message must be 50% visible
+      }
+    );
+
+    // Observe all message elements
+    Object.values(messageRefs.current).forEach((element) => {
+      if (element) {
+        observer.observe(element);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(markAsReadTimeout);
+    };
+  }, [messages, currentRoom, user]);
 
   // Listen for reaction updates
   useEffect(() => {
@@ -249,6 +302,8 @@ const MessageList = () => {
               <div
                 key={message._id}
                 ref={(el) => (messageRefs.current[message._id] = el)}
+                data-message-id={message._id}
+                data-sender-id={message.sender?._id}
                 className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} group`}
               >
                 {/* Sender name (only for others' messages) */}
@@ -321,13 +376,23 @@ const MessageList = () => {
                   isOwnMessage={isOwnMessage}
                 />
 
-                {/* Timestamp */}
+                {/* Timestamp and Read Receipts */}
                 <div className={`mt-1 px-2 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
                   <span className={`text-xs ${
                     theme === 'dark' ? 'text-gray-500' : 'text-gray-600'
                   }`}>
                     {formatDate(message.createdAt)}
                   </span>
+                  
+                  {/* Read Receipts - only for own messages */}
+                  {isOwnMessage && (
+                    <ReadReceipts
+                      messages={messages}
+                      currentMessageId={message._id}
+                      senderId={message.sender?._id}
+                      currentUserId={user._id}
+                    />
+                  )}
                 </div>
               </div>
             );

@@ -199,6 +199,15 @@ const useChatStore = create((set, get) => ({
     }));
   },
 
+  // Update message read receipts
+  updateMessageReadBy: (messageId, readBy) => {
+    set((state) => ({
+      messages: state.messages.map((msg) =>
+        msg._id === messageId ? { ...msg, readBy } : msg
+      ),
+    }));
+  },
+
   // Update a single room in the list
   updateRoom: (updatedRoom, currentUserId) => {
     set((state) => {
