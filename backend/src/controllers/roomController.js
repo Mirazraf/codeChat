@@ -218,6 +218,13 @@ const getRoomMessages = async (req, res) => {
 
     const messages = await Message.find({ room: req.params.id })
       .populate('sender', 'username email avatar role')
+      .populate({
+        path: 'replyTo',
+        populate: {
+          path: 'sender',
+          select: 'username avatar',
+        },
+      })
       .sort('-createdAt')
       .limit(limit)
       .skip(skip);
