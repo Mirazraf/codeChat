@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
 import Profile from './pages/Profile';
+import UserProfile from './pages/UserProfile';
 import useThemeStore from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
 
@@ -82,6 +83,14 @@ function App() {
             element={
               <PrivateRoute>
                 <Profile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/user/:userId"
+            element={
+              <PrivateRoute>
+                <UserProfile />
               </PrivateRoute>
             }
           />

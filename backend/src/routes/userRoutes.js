@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
+const { getPublicProfile } = require('../controllers/userController');
 
-// Placeholder for future user routes
-router.get('/', protect, (req, res) => {
-  res.json({ message: 'User routes coming soon' });
-});
+// User routes
+router.get('/:id/public-profile', protect, getPublicProfile);
 
 module.exports = router;

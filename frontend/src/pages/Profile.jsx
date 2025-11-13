@@ -4,6 +4,9 @@ import useAuthStore from '../store/useAuthStore';
 import useThemeStore from '../store/useThemeStore';
 import toast, { Toaster } from 'react-hot-toast';
 import PageTitle from '../components/PageTitle';
+import GlobalVisibilityToggle from '../components/profile/GlobalVisibilityToggle';
+import PrivacyToggle from '../components/profile/PrivacyToggle';
+import '../styles/profile.css';
 
 import { 
   User, Mail, Lock, Camera, Save, ArrowLeft, 
@@ -78,10 +81,133 @@ const Profile = () => {
     confirmPassword: '',
   });
 
-  // Calculate profile completion on mount
+  // Privacy Settings State
+  const [privacySettings, setPrivacySettings] = useState({
+    globalVisibility: user?.privacySettings?.globalVisibility || 'private',
+    fields: user?.privacySettings?.fields || {
+      fullName: 'private',
+      email: 'private',
+      phoneNumber: 'private',
+      gender: 'private',
+      dateOfBirth: 'private',
+      bloodGroup: 'private',
+      location: 'private',
+      bio: 'public',
+      avatar: 'public',
+      socialLinks: 'private',
+      studentInfo: 'private',
+      teacherInfo: 'private',
+    },
+  });
+
+  // Calculate profile completion on mount and update form when user changes
   useEffect(() => {
     calculateProfileCompletion();
+    
+    // Update form fields when user data changes
+    if (user) {
+      setPersonalData({
+        fullName: user.fullName || '',
+        username: user.username || '',
+        email: user.email || '',
+        phoneNumber: user.phoneNumber || '',
+        countryCode: user.countryCode || '+880',
+        gender: user.gender || '',
+        dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
+        bloodGroup: user.bloodGroup || '',
+        location: user.location?.fullLocation || '',
+        bio: user.bio || '',
+      });
+      
+      setSocialLinks({
+        linkedin: user.socialLinks?.linkedin || '',
+        github: user.socialLinks?.github || '',
+        portfolio: user.socialLinks?.portfolio || '',
+        facebook: user.socialLinks?.facebook || '',
+        twitter: user.socialLinks?.twitter || '',
+      });
+      
+      if (user.role === 'student') {
+        setStudentInfo({
+          institution: user.studentInfo?.institution || '',
+          educationLevel: user.studentInfo?.educationLevel || '',
+          major: user.studentInfo?.major || '',
+          preferredTopics: user.studentInfo?.preferredTopics || [],
+        });
+      } else if (user.role === 'teacher') {
+        setTeacherInfo({
+          education: user.teacherInfo?.education || [],
+          expertise: user.teacherInfo?.expertise || [],
+          experienceYears: user.teacherInfo?.experienceYears || 0,
+        });
+      }
+      
+      setPreviewImage(user.avatar || null);
+      
+      // Update privacy settings
+      if (user.privacySettings) {
+        setPrivacySettings({
+          globalVisibility: user.privacySettings.globalVisibility || 'private',
+          fields: user.privacySettings.fields || privacySettings.fields,
+        });
+      }
+    }
   }, [user]);
+
+  // Handle privacy field changes
+  const handlePrivacyChange = async (fieldName, newValue) => {
+    const updatedFields = {
+      ...privacySettings.fields,
+      [fieldName]: newValue,
+    };
+    
+    // Optimistically update UI
+    const previousSettings = { ...privacySettings };
+    setPrivacySettings({
+      ...privacySettings,
+      fields: updatedFields,
+    });
+    
+    // Save to backend
+    try {
+      await updateProfile({
+        privacySettings: {
+          globalVisibility: privacySettings.globalVisibility,
+          fields: updatedFields,
+        },
+      });
+      
+      // Show success message with icon and descriptive text
+      const icon = newValue === 'public' ? '🔓' : '🔒';
+      const visibilityText = newValue === 'public' 
+        ? 'visible to others' 
+        : 'hidden from others';
+      
+      toast.success(`${icon} ${fieldName} is now ${visibilityText}`, {
+        duration: 2500,
+        style: {
+          borderRadius: '10px',
+          background: theme === 'dark' ? '#2d2d3d' : '#fff',
+          color: theme === 'dark' ? '#fff' : '#333',
+        },
+      });
+    } catch (error) {
+      // Enhanced error handling with specific messages
+      const errorMessage = error.message || 'Failed to update privacy setting';
+      
+      toast.error(`❌ Privacy Update Failed: ${errorMessage}`, {
+        duration: 4000,
+        style: {
+          borderRadius: '10px',
+          background: theme === 'dark' ? '#2d2d3d' : '#fff',
+          color: theme === 'dark' ? '#fff' : '#333',
+        },
+      });
+      
+      // Revert on error
+      setPrivacySettings(previousSettings);
+    }
+  };
 
   const calculateProfileCompletion = () => {
     let total = 0;
@@ -138,18 +264,28 @@ const Profile = () => {
     const minSize = 50 * 1024;
     const maxSize = 2 * 1024 * 1024;
 
+    // Enhanced validation error messages
     if (file.size < minSize) {
-      toast.error('Image is too small. Minimum size is 50KB');
+      toast.error('❌ Image is too small. Minimum size is 50KB', {
+        duration: 4000,
+        icon: '📏',
+      });
       return;
     }
 
     if (file.size > maxSize) {
-      toast.error('Image is too large. Maximum size is 2MB');
+      toast.error('❌ Image is too large. Maximum size is 2MB', {
+        duration: 4000,
+        icon: '📦',
+      });
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
+      toast.error('❌ Please upload a valid image file (JPG, PNG, GIF, etc.)', {
+        duration: 4000,
+        icon: '🖼️',
+      });
       return;
     }
 
@@ -157,6 +293,10 @@ const Profile = () => {
     reader.onloadend = () => {
       setPreviewImage(reader.result);
       setSelectedFile(file);
+      toast.success('✅ Image selected! Click "Save Changes" to upload.', {
+        duration: 3000,
+        icon: '📸',
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -170,7 +310,10 @@ const Profile = () => {
       if (selectedFile) {
         toast.loading('Uploading profile picture...', { id: 'avatar' });
         await uploadAvatar(selectedFile);
-        toast.success('Profile picture updated!', { id: 'avatar' });
+        toast.success('✅ Profile picture updated successfully!', { 
+          id: 'avatar',
+          duration: 3000,
+        });
         setSelectedFile(null);
       }
 
@@ -190,6 +333,7 @@ const Profile = () => {
           country: '',
         },
         socialLinks: socialLinks,
+        privacySettings: privacySettings, // Include privacy settings
       };
 
       // Add role-specific data
@@ -202,9 +346,31 @@ const Profile = () => {
       await updateProfile(updateData);
       calculateProfileCompletion();
       
-      toast.success('Profile updated successfully! 🎉');
+      toast.success('✅ Profile updated successfully! Your changes have been saved.', {
+        duration: 3000,
+        icon: '🎉',
+      });
     } catch (error) {
-      toast.error(error.message || 'Failed to update profile');
+      // Enhanced error handling with specific messages
+      const errorMessage = error.message || 'Failed to update profile';
+      
+      if (errorMessage.includes('username')) {
+        toast.error('❌ Username Error: ' + errorMessage, {
+          duration: 5000,
+        });
+      } else if (errorMessage.includes('privacy')) {
+        toast.error('❌ Privacy Settings Error: ' + errorMessage, {
+          duration: 5000,
+        });
+      } else if (errorMessage.includes('validation')) {
+        toast.error('❌ Validation Error: ' + errorMessage, {
+          duration: 5000,
+        });
+      } else {
+        toast.error('❌ ' + errorMessage, {
+          duration: 4000,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -214,24 +380,46 @@ const Profile = () => {
     e.preventDefault();
     setLoading(true);
 
+    // Validation with enhanced error messages
     if (passwordData.newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters');
+      toast.error('❌ Password must be at least 6 characters long', {
+        duration: 4000,
+        icon: '🔒',
+      });
       setLoading(false);
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('New passwords do not match');
+      toast.error('❌ New passwords do not match. Please try again.', {
+        duration: 4000,
+        icon: '⚠️',
+      });
       setLoading(false);
       return;
     }
 
     try {
       await changePassword(passwordData);
-      toast.success('Password changed successfully! 🎉');
+      toast.success('✅ Password changed successfully! Your account is now more secure.', {
+        duration: 4000,
+        icon: '🔐',
+      });
       setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      toast.error(error.message || 'Failed to change password');
+      // Enhanced error handling for password change
+      const errorMessage = error.message || 'Failed to change password';
+      
+      if (errorMessage.includes('incorrect') || errorMessage.includes('wrong')) {
+        toast.error('❌ Current password is incorrect. Please try again.', {
+          duration: 5000,
+          icon: '🔒',
+        });
+      } else {
+        toast.error('❌ ' + errorMessage, {
+          duration: 4000,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -455,6 +643,9 @@ const Profile = () => {
           {/* PERSONAL INFO TAB */}
           {activeTab === 'personal' && (
             <form onSubmit={handleProfileSubmit} className="p-6 md:p-8">
+              {/* Global Visibility Toggle */}
+              <GlobalVisibilityToggle />
+              
               {/* Profile Picture */}
               <div className="flex flex-col items-center mb-8">
                 <div className="relative">
@@ -511,21 +702,32 @@ const Profile = () => {
               {/* Form Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Full Name */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Full Name <span className="text-red-500">*</span>
-                  </label>
+                <div className="privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Full Name <span className="text-red-500">*</span>
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.fullName === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="fullName"
+                    />
+                  </div>
                   <input
                     type="text"
                     value={personalData.fullName}
                     onChange={(e) => setPersonalData({ ...personalData, fullName: e.target.value })}
-                    className={`w-full px-4 py-3 rounded-lg transition ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                      privacySettings.fields.fullName === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white placeholder-gray-500'
+                        : 'bg-gray-50 border text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="John Doe"
                   />
                 </div>
@@ -573,21 +775,32 @@ const Profile = () => {
                 </div>
 
                 {/* Phone Number */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Phone Number
-                  </label>
+                <div className="privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone Number
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.phoneNumber === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="phoneNumber"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <select
                       value={personalData.countryCode}
                       onChange={(e) => setPersonalData({ ...personalData, countryCode: e.target.value })}
-                      className={`w-32 px-2 py-3 rounded-lg transition ${
+                      className={`w-32 px-2 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                        privacySettings.fields.phoneNumber === 'public'
+                          ? 'privacy-input-public'
+                          : 'privacy-input-private'
+                      } ${
                         theme === 'dark'
-                          ? 'bg-[#2d2d3d] border border-gray-700 text-white focus:border-purple-500'
-                          : 'bg-gray-50 border border-gray-300 text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                      } focus:outline-none`}
+                          ? 'bg-[#2d2d3d] border text-white'
+                          : 'bg-gray-50 border text-gray-900'
+                      }`}
                     >
                       {countryCodes.map((country) => (
                         <option key={country.code} value={country.code} className={theme === 'dark' ? 'bg-[#2d2d3d]' : 'bg-white'}>
@@ -599,31 +812,46 @@ const Profile = () => {
                       type="tel"
                       value={personalData.phoneNumber}
                       onChange={(e) => setPersonalData({ ...personalData, phoneNumber: e.target.value })}
-                      className={`flex-1 px-4 py-3 rounded-lg transition ${
+                      className={`flex-1 px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                        privacySettings.fields.phoneNumber === 'public'
+                          ? 'privacy-input-public'
+                          : 'privacy-input-private'
+                      } ${
                         theme === 'dark'
-                          ? 'bg-[#2d2d3d] border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500'
-                          : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                      } focus:outline-none`}
+                          ? 'bg-[#2d2d3d] border text-white placeholder-gray-500'
+                          : 'bg-gray-50 border text-gray-900 placeholder-gray-500'
+                      }`}
                       placeholder="1234567890"
                     />
                   </div>
                 </div>
 
                 {/* Gender */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Gender
-                  </label>
+                <div className="privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Gender
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.gender === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="gender"
+                    />
+                  </div>
                   <select
                     value={personalData.gender}
                     onChange={(e) => setPersonalData({ ...personalData, gender: e.target.value })}
-                    className={`w-full px-4 py-3 rounded-lg transition ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                      privacySettings.fields.gender === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white'
+                        : 'bg-gray-50 border text-gray-900'
+                    }`}
                   >
                     <option value="">Select gender</option>
                     {genderOptions.map((option) => (
@@ -635,40 +863,62 @@ const Profile = () => {
                 </div>
 
                 {/* Date of Birth */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Date of Birth
-                  </label>
+                <div className="privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Date of Birth
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.dateOfBirth === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="dateOfBirth"
+                    />
+                  </div>
                   <input
                     type="date"
                     value={personalData.dateOfBirth}
                     onChange={(e) => setPersonalData({ ...personalData, dateOfBirth: e.target.value })}
                     max={new Date().toISOString().split('T')[0]}
-                    className={`w-full px-4 py-3 rounded-lg transition ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                      privacySettings.fields.dateOfBirth === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white'
+                        : 'bg-gray-50 border text-gray-900'
+                    }`}
                   />
                 </div>
 
                 {/* Blood Group */}
-                <div>
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Blood Group
-                  </label>
+                <div className="privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Blood Group
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.bloodGroup === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="bloodGroup"
+                    />
+                  </div>
                   <select
                     value={personalData.bloodGroup}
                     onChange={(e) => setPersonalData({ ...personalData, bloodGroup: e.target.value })}
-                    className={`w-full px-4 py-3 rounded-lg transition ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                      privacySettings.fields.bloodGroup === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white'
+                        : 'bg-gray-50 border text-gray-900'
+                    }`}
                   >
                     <option value="">Select blood group</option>
                     {bloodGroups.map((group) => (
@@ -680,42 +930,64 @@ const Profile = () => {
                 </div>
 
                 {/* Location */}
-                <div className="md:col-span-2">
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Location
-                  </label>
+                <div className="md:col-span-2 privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Location
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.location === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="location"
+                    />
+                  </div>
                   <input
                     type="text"
                     value={personalData.location}
                     onChange={(e) => setPersonalData({ ...personalData, location: e.target.value })}
-                    className={`w-full px-4 py-3 rounded-lg transition ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition focus:outline-none ${
+                      privacySettings.fields.location === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white placeholder-gray-500'
+                        : 'bg-gray-50 border text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="City, Country (e.g., Dhaka, Bangladesh)"
                   />
                 </div>
 
                 {/* Bio */}
-                <div className="md:col-span-2">
-                  <label className={`block text-sm font-medium mb-2 ${
-                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    Bio
-                  </label>
+                <div className="md:col-span-2 privacy-field-wrapper">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`block text-sm font-medium ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Bio
+                    </label>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.bio === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="bio"
+                    />
+                  </div>
                   <textarea
                     value={personalData.bio}
                     onChange={(e) => setPersonalData({ ...personalData, bio: e.target.value })}
                     rows="4"
                     maxLength="500"
-                    className={`w-full px-4 py-3 rounded-lg transition resize-none ${
+                    className={`w-full px-4 py-3 rounded-lg privacy-input-transition resize-none focus:outline-none ${
+                      privacySettings.fields.bio === 'public'
+                        ? 'privacy-input-public'
+                        : 'privacy-input-private'
+                    } ${
                       theme === 'dark'
-                        ? 'bg-[#2d2d3d] border border-gray-700 text-white placeholder-gray-500 focus:border-purple-500'
-                        : 'bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-200'
-                    } focus:outline-none`}
+                        ? 'bg-[#2d2d3d] border text-white placeholder-gray-500'
+                        : 'bg-gray-50 border text-gray-900 placeholder-gray-500'
+                    }`}
                     placeholder="Tell us about yourself..."
                   />
                   <p className={`text-xs mt-1 text-right ${theme === 'dark' ? 'text-gray-500' : 'text-gray-600'}`}>
@@ -756,9 +1028,16 @@ const Profile = () => {
             <form onSubmit={handleProfileSubmit} className="p-6 md:p-8">
               {user?.role === 'student' ? (
                 <>
-                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    Educational Information
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      Educational Information
+                    </h3>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.studentInfo === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="studentInfo"
+                    />
+                  </div>
 
                   <div className="space-y-6">
                     {/* Institution */}
@@ -873,9 +1152,16 @@ const Profile = () => {
                 </>
               ) : (
                 <>
-                  <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                    Professional Information
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      Professional Information
+                    </h3>
+                    <PrivacyToggle
+                      isPublic={privacySettings.fields.teacherInfo === 'public'}
+                      onChange={handlePrivacyChange}
+                      fieldName="teacherInfo"
+                    />
+                  </div>
 
                   <div className="space-y-6">
                     {/* Education History */}
@@ -1119,12 +1405,21 @@ const Profile = () => {
           {/* SOCIAL LINKS TAB */}
           {activeTab === 'social' && (
             <form onSubmit={handleProfileSubmit} className="p-6 md:p-8">
-              <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                Social Media Links
-              </h3>
-              <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                Connect your social media profiles to enhance your profile visibility
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Social Media Links
+                  </h3>
+                  <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Connect your social media profiles to enhance your profile visibility
+                  </p>
+                </div>
+                <PrivacyToggle
+                  isPublic={privacySettings.fields.socialLinks === 'public'}
+                  onChange={handlePrivacyChange}
+                  fieldName="socialLinks"
+                />
+              </div>
 
               <div className="space-y-4">
                 {/* LinkedIn */}

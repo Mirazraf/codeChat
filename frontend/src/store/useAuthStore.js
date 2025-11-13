@@ -104,6 +104,70 @@ const useAuthStore = create((set, get) => ({
       });
       
       const updatedUser = response.data.data;
+      
+      // Preserve privacySettings if they exist in the response
+      if (updatedUser.privacySettings) {
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        set({
+          user: updatedUser,
+          loading: false,
+        });
+      } else {
+        // If privacySettings not in response, merge with existing user data
+        const currentUser = get().user;
+        const mergedUser = {
+          ...updatedUser,
+          privacySettings: currentUser?.privacySettings || null,
+        };
+        localStorage.setItem('user', JSON.stringify(mergedUser));
+        set({
+          user: mergedUser,
+          loading: false,
+        });
+      }
+      
+      return { success: true };
+    } catch (error) {
+      // Enhanced error message extraction
+      let message = 'Failed to update profile';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors with detailed information
+        const errors = error.response.data.errors;
+        if (errors.field && errors.expected) {
+          message = `Invalid value for ${errors.field}. Expected: ${errors.expected}`;
+        }
+      } else if (error.message) {
+        message = error.message;
+      }
+      
+      set({ error: message, loading: false });
+      throw new Error(message);
+    }
+  },
+
+  // Update Privacy Settings
+  updatePrivacySettings: async (privacySettings) => {
+    set({ loading: true, error: null });
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`${API_URL}/profile/privacy`, privacySettings, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      const updatedSettings = response.data.data.privacySettings;
+      const currentUser = get().user;
+      
+      // Update user with new privacy settings
+      const updatedUser = {
+        ...currentUser,
+        privacySettings: updatedSettings,
+      };
+      
       localStorage.setItem('user', JSON.stringify(updatedUser));
       
       set({
@@ -111,9 +175,23 @@ const useAuthStore = create((set, get) => ({
         loading: false,
       });
       
-      return { success: true };
+      return { success: true, message: 'Privacy settings updated successfully' };
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to update profile';
+      // Enhanced error message extraction
+      let message = 'Failed to update privacy settings';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        // Handle validation errors with detailed information
+        const errors = error.response.data.errors;
+        if (errors.field && errors.expected) {
+          message = `Invalid value for ${errors.field}. Expected: ${errors.expected}`;
+        }
+      } else if (error.message) {
+        message = error.message;
+      }
+      
       set({ error: message, loading: false });
       throw new Error(message);
     }
@@ -146,7 +224,22 @@ const useAuthStore = create((set, get) => ({
       
       return { success: true, avatar };
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to upload avatar';
+      // Enhanced error message extraction
+      let message = 'Failed to upload avatar';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      }
+      
+      // Add context for common upload errors
+      if (message.includes('size') || message.includes('large')) {
+        message = 'Image file is too large. Please use an image under 2MB.';
+      } else if (message.includes('format') || message.includes('type')) {
+        message = 'Invalid image format. Please use JPG, PNG, or GIF.';
+      }
+      
       set({ error: message, loading: false });
       throw new Error(message);
     }
@@ -166,7 +259,15 @@ const useAuthStore = create((set, get) => ({
       set({ loading: false });
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Failed to change password';
+      // Enhanced error message extraction
+      let message = 'Failed to change password';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      }
+      
       set({ error: message, loading: false });
       throw new Error(message);
     }

@@ -119,6 +119,20 @@ const socketHandler = (io) => {
                 lastActivity: new Date(),
                 lastMessage: message._id,
               });
+              
+              // Emit room update AFTER database update completes
+              const updatedRoom = await Room.findById(roomId)
+                .populate('creator', 'username email avatar role')
+                .populate('members', 'username email avatar role')
+                .populate({
+                  path: 'lastMessage',
+                  populate: {
+                    path: 'sender',
+                    select: 'username avatar',
+                  },
+                });
+              
+              io.emit('roomUpdate', updatedRoom);
             } else {
               // For system messages, only update lastActivity
               await Room.findByIdAndUpdate(roomId, {
@@ -187,22 +201,6 @@ const socketHandler = (io) => {
             console.error('Background task error:', error);
           }
         });
-
-            // Emit room update to all users (for sidebar updates)
-            if (type !== 'system') {
-              const updatedRoom = await Room.findById(roomId)
-                .populate('creator', 'username email avatar role')
-                .populate('members', 'username email avatar role')
-                .populate({
-                  path: 'lastMessage',
-                  populate: {
-                    path: 'sender',
-                    select: 'username avatar',
-                  },
-                });
-              
-              io.emit('roomUpdate', updatedRoom);
-            }
       } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });
@@ -225,7 +223,11 @@ const socketHandler = (io) => {
           room: roomId,
           sender: { $ne: userId }, // Don't mark own messages as read
           'readBy.user': { $ne: userId }, // Not already read by this user
-        });
+        }).sort('-createdAt'); // Sort by newest first
+
+        if (messages.length === 0) {
+          return; // No unread messages
+        }
 
         // Mark all messages as read
         for (const message of messages) {
@@ -243,6 +245,29 @@ const socketHandler = (io) => {
             messageId: message._id,
             readBy: populatedMessage.readBy,
           });
+        }
+
+        // Update user's lastReadMessages for this room (use the latest message)
+        const latestMessage = messages[0]; // First message (newest due to sort)
+        const user = await User.findById(userId);
+        
+        if (user) {
+          const existingReadIndex = user.lastReadMessages.findIndex(
+            (lrm) => lrm.room.toString() === roomId
+          );
+
+          if (existingReadIndex !== -1) {
+            user.lastReadMessages[existingReadIndex].message = latestMessage._id;
+            user.lastReadMessages[existingReadIndex].readAt = new Date();
+          } else {
+            user.lastReadMessages.push({
+              room: roomId,
+              message: latestMessage._id,
+              readAt: new Date(),
+            });
+          }
+
+          await user.save();
         }
 
         console.log(`✅ User ${userId} marked ${messages.length} messages as read in room ${roomId}`);

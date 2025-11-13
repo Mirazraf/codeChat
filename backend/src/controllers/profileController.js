@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { cloudinary } = require('../config/cloudinary');
+const { filterProfileByPrivacy } = require('../utils/privacyFilter');
 
 // @desc    Get user profile with completion percentage
 // @route   GET /api/profile
@@ -19,6 +20,7 @@ const getProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         profileCompletion,
+        privacySettings: user.privacySettings, // Include privacy settings for own profile
       },
     });
   } catch (error) {
@@ -106,6 +108,44 @@ const updateProfile = async (req, res) => {
       };
     }
 
+    // Update privacy settings if provided
+    if (updateData.privacySettings) {
+      // Validate privacy settings structure
+      if (updateData.privacySettings.globalVisibility) {
+        const validGlobalValues = ['public', 'private'];
+        if (!validGlobalValues.includes(updateData.privacySettings.globalVisibility)) {
+          return res.status(400).json({ 
+            message: 'Invalid global visibility value. Must be "public" or "private"' 
+          });
+        }
+        user.privacySettings.globalVisibility = updateData.privacySettings.globalVisibility;
+      }
+
+      // Validate and update field-level privacy settings
+      if (updateData.privacySettings.fields) {
+        const validFieldValues = ['public', 'private'];
+        const allowedFields = [
+          'fullName', 'email', 'phoneNumber', 'gender', 'dateOfBirth', 
+          'bloodGroup', 'location', 'bio', 'avatar', 'socialLinks', 
+          'studentInfo', 'teacherInfo'
+        ];
+
+        for (const [field, value] of Object.entries(updateData.privacySettings.fields)) {
+          if (!allowedFields.includes(field)) {
+            return res.status(400).json({ 
+              message: `Invalid field name: ${field}` 
+            });
+          }
+          if (!validFieldValues.includes(value)) {
+            return res.status(400).json({ 
+              message: `Invalid privacy value for ${field}. Must be "public" or "private"` 
+            });
+          }
+          user.privacySettings.fields[field] = value;
+        }
+      }
+    }
+
     await user.save();
 
     const profileCompletion = user.getProfileCompletion();
@@ -115,6 +155,7 @@ const updateProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         profileCompletion,
+        privacySettings: user.privacySettings, // Return updated privacy settings
       },
     });
   } catch (error) {
@@ -224,9 +265,116 @@ const changePassword = async (req, res) => {
   }
 };
 
+// @desc    Update privacy settings
+// @route   PUT /api/profile/privacy
+// @access  Private
+const updatePrivacySettings = async (req, res) => {
+  try {
+    const { globalVisibility, fields } = req.body;
+
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate global visibility if provided
+    if (globalVisibility) {
+      const validGlobalValues = ['public', 'private'];
+      if (!validGlobalValues.includes(globalVisibility)) {
+        return res.status(400).json({ 
+          message: 'Invalid global visibility value. Must be "public" or "private"',
+          errors: {
+            field: 'globalVisibility',
+            value: globalVisibility,
+            expected: 'public or private'
+          }
+        });
+      }
+      user.privacySettings.globalVisibility = globalVisibility;
+    }
+
+    // Validate and update field-level privacy settings
+    if (fields) {
+      const validFieldValues = ['public', 'private'];
+      const allowedFields = [
+        'fullName', 'email', 'phoneNumber', 'gender', 'dateOfBirth', 
+        'bloodGroup', 'location', 'bio', 'avatar', 'socialLinks', 
+        'studentInfo', 'teacherInfo'
+      ];
+
+      for (const [field, value] of Object.entries(fields)) {
+        if (!allowedFields.includes(field)) {
+          return res.status(400).json({ 
+            message: `Invalid field name: ${field}`,
+            errors: {
+              field: field,
+              expected: allowedFields.join(', ')
+            }
+          });
+        }
+        if (!validFieldValues.includes(value)) {
+          return res.status(400).json({ 
+            message: `Invalid privacy value for ${field}. Must be "public" or "private"`,
+            errors: {
+              field: field,
+              value: value,
+              expected: 'public or private'
+            }
+          });
+        }
+        user.privacySettings.fields[field] = value;
+      }
+    }
+
+    await user.save();
+
+    console.log('✅ Privacy settings updated for user:', user.username);
+
+    res.json({
+      success: true,
+      message: 'Privacy settings updated',
+      data: {
+        privacySettings: user.privacySettings,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Update privacy settings error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Get public profile of a user
+// @route   GET /api/users/:id/public-profile
+// @access  Private
+const getPublicProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Apply privacy filtering
+    const filteredProfile = filterProfileByPrivacy(user, req.user._id.toString());
+
+    res.json({
+      success: true,
+      data: filteredProfile,
+    });
+  } catch (error) {
+    console.error('❌ Get public profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   uploadAvatar,
   changePassword,
+  updatePrivacySettings,
+  getPublicProfile,
 };

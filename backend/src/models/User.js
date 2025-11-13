@@ -136,6 +136,77 @@ const userSchema = new mongoose.Schema(
         default: Date.now,
       },
     }],
+    
+    // PRIVACY SETTINGS
+    privacySettings: {
+      globalVisibility: {
+        type: String,
+        enum: ['public', 'private'],
+        default: 'private',
+      },
+      fields: {
+        fullName: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        email: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        phoneNumber: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        gender: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        dateOfBirth: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        bloodGroup: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        location: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        bio: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'public' 
+        },
+        avatar: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'public' 
+        },
+        socialLinks: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        studentInfo: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+        teacherInfo: { 
+          type: String, 
+          enum: ['public', 'private'], 
+          default: 'private' 
+        },
+      },
+    },
   },
   {
     timestamps: true,

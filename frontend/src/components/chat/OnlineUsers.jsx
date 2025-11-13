@@ -1,7 +1,11 @@
+import { useNavigate } from 'react-router-dom';
 import useChatStore from '../../store/useChatStore';
+import useThemeStore from '../../store/useThemeStore';
 
 const OnlineUsers = () => {
   const { onlineUsers } = useChatStore();
+  const { theme } = useThemeStore();
+  const navigate = useNavigate();
 
   return (
     <div className="w-64 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
@@ -13,9 +17,10 @@ const OnlineUsers = () => {
       
       <div className="flex-1 overflow-y-auto p-2">
         {onlineUsers.map((user) => (
-          <div
+          <button
             key={user.userId}
-            className="flex items-center space-x-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition"
+            onClick={() => navigate(`/user/${user.userId}`)}
+            className="w-full flex items-center space-x-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition cursor-pointer"
           >
             <div className="relative">
               <img
@@ -31,7 +36,7 @@ const OnlineUsers = () => {
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user.role}</div>
             </div>
-          </div>
+          </button>
         ))}
         
         {onlineUsers.length === 0 && (
