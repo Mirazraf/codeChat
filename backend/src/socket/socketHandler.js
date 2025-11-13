@@ -52,18 +52,6 @@ const socketHandler = (io) => {
         socket.join(roomId);
         socket.currentRoom = roomId;
 
-        // Send system message (broadcast only, don't save to DB)
-        const systemMessage = {
-          _id: `system-${Date.now()}`,
-          room: roomId,
-          sender: null,
-          content: `${user.username} joined the room`,
-          type: 'system',
-          createdAt: new Date(),
-        };
-
-        io.to(roomId).emit('message', systemMessage);
-
         console.log(`📥 ${user.username} joined room: ${room.name}`);
       } catch (error) {
         console.error('Join room error:', error);
@@ -81,18 +69,6 @@ const socketHandler = (io) => {
 
         socket.leave(roomId);
         socket.currentRoom = null;
-
-        // Send system message (broadcast only, don't save to DB)
-        const systemMessage = {
-          _id: `system-${Date.now()}`,
-          room: roomId,
-          sender: null,
-          content: `${user.username} left the room`,
-          type: 'system',
-          createdAt: new Date(),
-        };
-
-        io.to(roomId).emit('message', systemMessage);
 
         console.log(`📤 ${user.username} left room: ${room.name}`);
       } catch (error) {
@@ -131,58 +107,102 @@ const socketHandler = (io) => {
           })
           .populate('readBy.user', 'username avatar');
 
-        // Update room last activity and last message (only for non-system messages)
-        if (type !== 'system') {
-          await Room.findByIdAndUpdate(roomId, {
-            lastActivity: new Date(),
-            lastMessage: message._id,
-          });
-        } else {
-          // For system messages, only update lastActivity
-          await Room.findByIdAndUpdate(roomId, {
-            lastActivity: new Date(),
-          });
-        }
-
-        // Auto-mark as read for the sender
-        const sender = await User.findById(userId);
-        if (sender) {
-          const existingReadIndex = sender.lastReadMessages.findIndex(
-            (lrm) => lrm.room.toString() === roomId
-          );
-
-          if (existingReadIndex !== -1) {
-            sender.lastReadMessages[existingReadIndex].message = message._id;
-            sender.lastReadMessages[existingReadIndex].readAt = new Date();
-          } else {
-            sender.lastReadMessages.push({
-              room: roomId,
-              message: message._id,
-              readAt: new Date(),
-            });
-          }
-
-          await sender.save();
-        }
-
-        // Broadcast message to room
+        // Broadcast message to room FIRST (for instant delivery)
         io.to(roomId).emit('message', populatedMessage);
 
-        // Emit room update to all users in the room (for sidebar updates)
-        if (type !== 'system') {
-          const updatedRoom = await Room.findById(roomId)
-            .populate('creator', 'username email avatar role')
-            .populate('members', 'username email avatar role')
-            .populate({
-              path: 'lastMessage',
-              populate: {
-                path: 'sender',
-                select: 'username avatar',
-              },
-            });
-          
-          io.emit('roomUpdate', updatedRoom);
-        }
+        // Then do background tasks asynchronously (don't block message delivery)
+        setImmediate(async () => {
+          try {
+            // Update room last activity and last message (only for non-system messages)
+            if (type !== 'system') {
+              await Room.findByIdAndUpdate(roomId, {
+                lastActivity: new Date(),
+                lastMessage: message._id,
+              });
+            } else {
+              // For system messages, only update lastActivity
+              await Room.findByIdAndUpdate(roomId, {
+                lastActivity: new Date(),
+              });
+            }
+
+            // Auto-mark as read for the sender
+            const sender = await User.findById(userId);
+            if (sender) {
+              const existingReadIndex = sender.lastReadMessages.findIndex(
+                (lrm) => lrm.room.toString() === roomId
+              );
+
+              if (existingReadIndex !== -1) {
+                sender.lastReadMessages[existingReadIndex].message = message._id;
+                sender.lastReadMessages[existingReadIndex].readAt = new Date();
+              } else {
+                sender.lastReadMessages.push({
+                  room: roomId,
+                  message: message._id,
+                  readAt: new Date(),
+                });
+              }
+
+              await sender.save();
+
+              // Find all unread messages from others in this room
+              const unreadMessages = await Message.find({
+                room: roomId,
+                _id: { $ne: message._id }, // Exclude the current message
+                sender: { $ne: userId }, // Only others' messages
+                'readBy.user': { $ne: userId }, // Not already read
+              }).select('_id');
+
+              // Mark them as read
+              if (unreadMessages.length > 0) {
+                const messageIds = unreadMessages.map(m => m._id);
+                
+                await Message.updateMany(
+                  { _id: { $in: messageIds } },
+                  {
+                    $push: {
+                      readBy: {
+                        user: userId,
+                        readAt: new Date(),
+                      },
+                    },
+                  }
+                );
+
+                // Emit read receipt updates only for the affected messages
+                const updatedMessages = await Message.find({ _id: { $in: messageIds } })
+                  .populate('readBy.user', 'username avatar')
+                  .select('_id readBy');
+
+                updatedMessages.forEach((msg) => {
+                  io.to(roomId).emit('messageReadUpdate', {
+                    messageId: msg._id,
+                    readBy: msg.readBy,
+                  });
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Background task error:', error);
+          }
+        });
+
+            // Emit room update to all users (for sidebar updates)
+            if (type !== 'system') {
+              const updatedRoom = await Room.findById(roomId)
+                .populate('creator', 'username email avatar role')
+                .populate('members', 'username email avatar role')
+                .populate({
+                  path: 'lastMessage',
+                  populate: {
+                    path: 'sender',
+                    select: 'username avatar',
+                  },
+                });
+              
+              io.emit('roomUpdate', updatedRoom);
+            }
       } catch (error) {
         console.error('Send message error:', error);
         socket.emit('error', { message: 'Failed to send message' });
