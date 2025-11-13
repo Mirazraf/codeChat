@@ -27,6 +27,10 @@ const ChatWindow = ({ user: propUser }) => {
     await leaveRoom(currentUser._id);
   };
 
+  const handleSettingsClick = () => {
+    navigate(`/chat/room/${currentRoom._id}/settings`);
+  };
+
   // Check if near bottom
   const checkScrollPosition = () => {
     const container = document.querySelector('[data-messages-container]');
@@ -140,11 +144,15 @@ const ChatWindow = ({ user: propUser }) => {
           >
             <Users className="w-5 h-5" />
           </button>
-          <button className={`hidden md:block p-2 rounded-lg transition ${
-            theme === 'dark'
-              ? 'hover:bg-[#2d2d3d] text-gray-300'
-              : 'hover:bg-gray-100 text-gray-600'
-          }`}>
+          <button 
+            onClick={handleSettingsClick}
+            className={`p-2 rounded-lg transition ${
+              theme === 'dark'
+                ? 'hover:bg-[#2d2d3d] text-gray-300'
+                : 'hover:bg-gray-100 text-gray-600'
+            }`}
+            title="Room settings"
+          >
             <Settings className="w-5 h-5" />
           </button>
         </div>

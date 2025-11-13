@@ -438,6 +438,58 @@ const togglePinRoom = async (req, res) => {
   }
 };
 
+// @desc    Get room statistics
+// @route   GET /api/rooms/:id/statistics
+// @access  Private
+const getRoomStatistics = async (req, res) => {
+  try {
+    const roomId = req.params.id;
+
+    // Verify room exists and user has access
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found',
+      });
+    }
+
+    // Check access permissions
+    if (
+      room.type === 'private' &&
+      !room.members.includes(req.user.id) &&
+      room.creator.toString() !== req.user.id
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied',
+      });
+    }
+
+    // Count total messages
+    const totalMessages = await Message.countDocuments({ room: roomId });
+
+    // Count code snippets
+    const codeSnippets = await Message.countDocuments({
+      room: roomId,
+      type: 'code',
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalMessages,
+        codeSnippets,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getRooms,
   getRoom,
@@ -448,4 +500,5 @@ module.exports = {
   deleteRoom,
   markRoomAsRead,
   togglePinRoom,
+  getRoomStatistics,
 };

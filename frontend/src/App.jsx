@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
 import Profile from './pages/Profile';
 import UserProfile from './pages/UserProfile';
+import RoomSettings from './pages/RoomSettings';
 import useThemeStore from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
 
@@ -75,6 +76,14 @@ function App() {
             element={
               <PrivateRoute>
                 <ChatPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/chat/room/:roomId/settings"
+            element={
+              <PrivateRoute>
+                <RoomSettings />
               </PrivateRoute>
             }
           />

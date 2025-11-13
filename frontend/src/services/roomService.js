@@ -47,4 +47,9 @@ export const roomService = {
     const response = await api.post(`/rooms/${roomId}/pin`);
     return response.data;
   },
+
+  getRoomStatistics: async (roomId) => {
+    const response = await api.get(`/rooms/${roomId}/statistics`);
+    return response.data;
+  },
 };
