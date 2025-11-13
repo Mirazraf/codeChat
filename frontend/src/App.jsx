@@ -13,6 +13,8 @@ import UserProfile from './pages/UserProfile';
 import RoomSettings from './pages/RoomSettings';
 import useThemeStore from './store/useThemeStore';
 import useAuthStore from './store/useAuthStore';
+import useChatStore from './store/useChatStore';
+import socketService from './services/socketService';
 
 // Scroll to top on route change
 function ScrollToTop() {
@@ -27,13 +29,37 @@ function ScrollToTop() {
 
 function App() {
   const { theme, setTheme } = useThemeStore();
-  const { checkAuth, isAuthenticated } = useAuthStore();
+  const { checkAuth, isAuthenticated, user } = useAuthStore();
+  const { setOnlineUsers } = useChatStore();
 
   useEffect(() => {
     // Initialize theme and check authentication on app load
     setTheme(theme);
     checkAuth();
   }, []);
+
+  // Global socket connection - connects when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // Connect socket globally
+      const socket = socketService.connect(user._id);
+      
+      // Listen for online users updates
+      socketService.onOnlineUsers((users) => {
+        setOnlineUsers(users);
+      });
+      
+      console.log('🌐 Socket connected globally for user:', user.username);
+    }
+    
+    return () => {
+      // Disconnect on unmount or logout
+      if (!isAuthenticated) {
+        socketService.disconnect();
+        console.log('🔌 Socket disconnected');
+      }
+    };
+  }, [isAuthenticated, user, setOnlineUsers]);
 
   return (
     <Router>

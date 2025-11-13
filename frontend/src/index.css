@@ -140,3 +140,13 @@ code {
 .modal-overlay {
   z-index: 9000 !important;
 }
+
+/* Subtask 2.2: Hide scrollbar while maintaining scroll functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

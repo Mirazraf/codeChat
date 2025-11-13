@@ -6,6 +6,7 @@ import useThemeStore from '../../store/useThemeStore';
 import { roomService } from '../../services/roomService';
 import formatDate from '../../utils/formatDate';
 import toast from 'react-hot-toast';
+import OnlineUsersSection from './OnlineUsersSection';
 
 const RoomList = ({ rooms, currentRoom }) => {
   const { setCurrentRoom, leaveRoom, fetchRooms } = useChatStore();
@@ -264,68 +265,76 @@ const RoomList = ({ rooms, currentRoom }) => {
     };
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="p-2">
-        {/* Pinned Section */}
-        {pinnedRooms.length > 0 && (
-          <div className="mb-4">
-            <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              <Pin className="w-3 h-3" />
-              Pinned ({pinnedRooms.length})
-            </h3>
-            {pinnedRooms.map(renderRoom)}
-          </div>
-        )}
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Room List - Scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-2">
+          {/* Pinned Section */}
+          {pinnedRooms.length > 0 && (
+            <div className="mb-4">
+              <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Pin className="w-3 h-3" />
+                Pinned ({pinnedRooms.length})
+              </h3>
+              {pinnedRooms.map(renderRoom)}
+            </div>
+          )}
 
-        {/* Public Rooms Section */}
-        {publicRooms.length > 0 && (
-          <div className="mb-4">
-            <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              <Hash className="w-3 h-3" />
-              Public ({publicRooms.length})
-            </h3>
-            {publicRooms.map(renderRoom)}
-          </div>
-        )}
+          {/* Public Rooms Section */}
+          {publicRooms.length > 0 && (
+            <div className="mb-4">
+              <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Hash className="w-3 h-3" />
+                Public ({publicRooms.length})
+              </h3>
+              {publicRooms.map(renderRoom)}
+            </div>
+          )}
 
-        {/* Private Rooms Section */}
-        {privateRooms.length > 0 && (
-          <div className="mb-4">
-            <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-            }`}>
-              <Lock className="w-3 h-3" />
-              Private ({privateRooms.length})
-            </h3>
-            {privateRooms.map(renderRoom)}
-          </div>
-        )}
+          {/* Private Rooms Section */}
+          {privateRooms.length > 0 && (
+            <div className="mb-4">
+              <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Lock className="w-3 h-3" />
+                Private ({privateRooms.length})
+              </h3>
+              {privateRooms.map(renderRoom)}
+            </div>
+          )}
 
-        {/* Classroom Section */}
-        {classroomRooms.length > 0 && (
-          <div className="mb-4">
-            <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
+          {/* Classroom Section */}
+          {classroomRooms.length > 0 && (
+            <div className="mb-4">
+              <h3 className={`px-3 py-2 text-xs font-semibold uppercase flex items-center gap-2 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Users className="w-3 h-3" />
+                Classroom ({classroomRooms.length})
+              </h3>
+              {classroomRooms.map(renderRoom)}
+            </div>
+          )}
+          
+          {rooms.length === 0 && (
+            <div className={`text-center py-8 ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              <Users className="w-3 h-3" />
-              Classroom ({classroomRooms.length})
-            </h3>
-            {classroomRooms.map(renderRoom)}
-          </div>
-        )}
-        
-        {rooms.length === 0 && (
-          <div className={`text-center py-8 ${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-          }`}>
-            <p className="text-sm">No rooms yet</p>
-            <p className="text-xs mt-1">Create one to get started!</p>
-          </div>
-        )}
+              <p className="text-sm">No rooms yet</p>
+              <p className="text-xs mt-1">Create one to get started!</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Online Users Section - Only visible on mobile/tablet (< lg breakpoint) */}
+      <div className="lg:hidden">
+        <OnlineUsersSection />
       </div>
     </div>
   );

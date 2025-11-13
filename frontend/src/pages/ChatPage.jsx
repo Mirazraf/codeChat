@@ -42,9 +42,6 @@ const ChatPage = () => {
     document.body.classList.add('chat-page');
     document.documentElement.style.overflow = 'hidden';
 
-    // Connect to socket
-    const socket = socketService.connect(user._id);
-
     // Fetch rooms
     fetchRooms().catch((err) => {
       toast.error('Failed to load rooms');
@@ -53,11 +50,6 @@ const ChatPage = () => {
     // Listen for messages
     socketService.onMessage((message) => {
       addMessage(message, user._id);
-    });
-
-    // Listen for online users
-    socketService.onOnlineUsers((users) => {
-      setOnlineUsers(users);
     });
 
     // Listen for typing indicators
@@ -82,7 +74,6 @@ const ChatPage = () => {
       if (currentRoom) {
         leaveRoom(user._id);
       }
-      socketService.disconnect();
     };
   }, [user, navigate]);
 
