@@ -124,7 +124,7 @@ const ChatPage = () => {
         {/* Middle - Chat Window */}
         <div className={`${currentRoom ? 'flex' : 'hidden md:flex'} flex-1 flex-col overflow-hidden`}>
           {currentRoom ? (
-            <ChatWindow />
+            <ChatWindow user={user} />
           ) : (
             <div className={`flex-1 flex items-center justify-center ${
               theme === 'dark' ? 'bg-[#2d2d3d]' : 'bg-gray-50'

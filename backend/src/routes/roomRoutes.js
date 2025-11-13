@@ -9,6 +9,7 @@ const {
   getRoomMessages,
   deleteRoom,
   markRoomAsRead,
+  togglePinRoom,
 } = require('../controllers/roomController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -20,5 +21,6 @@ router.post('/:id/join', protect, joinRoom);
 router.post('/:id/leave', protect, leaveRoom);
 router.get('/:id/messages', protect, getRoomMessages);
 router.post('/:id/read', protect, markRoomAsRead);
+router.post('/:id/pin', protect, togglePinRoom);
 
 module.exports = router;

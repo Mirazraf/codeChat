@@ -6,16 +6,25 @@ import useAuthStore from '../../store/useAuthStore';
 import useThemeStore from '../../store/useThemeStore';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
+import RoomMembersModal from './RoomMembersModal';
+import RoomPreview from './RoomPreview';
 
-const ChatWindow = () => {
+const ChatWindow = ({ user: propUser }) => {
   const { currentRoom, messages, typingUsers, leaveRoom } = useChatStore();
   const { user } = useAuthStore();
   const { theme } = useThemeStore();
   const navigate = useNavigate();
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+
+  // Use prop user if provided, otherwise use from store
+  const currentUser = propUser || user;
+
+  // Check if current user is a member of the room
+  const isMember = currentRoom?.members?.some(member => member._id === currentUser?._id);
 
   const handleBack = async () => {
-    await leaveRoom(user._id);
+    await leaveRoom(currentUser._id);
   };
 
   // Check if near bottom
@@ -47,6 +56,34 @@ const ChatWindow = () => {
       return () => container.removeEventListener('scroll', checkScrollPosition);
     }
   }, [currentRoom]);
+
+  // If user is not a member, show room preview
+  if (!isMember) {
+    return (
+      <div className={`flex-1 flex flex-col overflow-hidden ${
+        theme === 'dark' ? 'bg-[#1e1e2d]' : 'bg-white'
+      }`}>
+        {/* Header for mobile back button */}
+        <div className={`md:hidden h-16 border-b flex items-center px-4 ${
+          theme === 'dark' 
+            ? 'border-gray-700 bg-[#1e1e2d]' 
+            : 'border-gray-200 bg-white'
+        }`}>
+          <button
+            onClick={handleBack}
+            className={`p-2 rounded-lg transition ${
+              theme === 'dark'
+                ? 'hover:bg-[#2d2d3d] text-gray-300'
+                : 'hover:bg-gray-100 text-gray-600'
+            }`}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
+        <RoomPreview room={currentRoom} />
+      </div>
+    );
+  }
 
   return (
     <div className={`flex-1 flex flex-col overflow-hidden relative ${
@@ -92,11 +129,15 @@ const ChatWindow = () => {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className={`p-2 rounded-lg transition ${
-            theme === 'dark'
-              ? 'hover:bg-[#2d2d3d] text-gray-300'
-              : 'hover:bg-gray-100 text-gray-600'
-          }`}>
+          <button 
+            onClick={() => setShowMembersModal(true)}
+            className={`p-2 rounded-lg transition ${
+              theme === 'dark'
+                ? 'hover:bg-[#2d2d3d] text-gray-300'
+                : 'hover:bg-gray-100 text-gray-600'
+            }`}
+            title="View members"
+          >
             <Users className="w-5 h-5" />
           </button>
           <button className={`hidden md:block p-2 rounded-lg transition ${
@@ -108,6 +149,13 @@ const ChatWindow = () => {
           </button>
         </div>
       </div>
+
+      {/* Room Members Modal */}
+      <RoomMembersModal
+        isOpen={showMembersModal}
+        onClose={() => setShowMembersModal(false)}
+        room={currentRoom}
+      />
 
       {/* Messages Area */}
       <MessageList messages={messages} />

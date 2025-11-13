@@ -27,9 +27,14 @@ const getRooms = async (req, res) => {
       })
       .sort('-lastActivity');
 
-    // Add hasUnread flag to each room
+    // Add hasUnread and isPinned flags to each room
     const roomsWithUnread = rooms.map((room) => {
       const roomObj = room.toObject();
+      
+      // Check if room is pinned
+      roomObj.isPinned = user.pinnedRooms.some(
+        (pinnedId) => pinnedId.toString() === room._id.toString()
+      );
       
       if (roomObj.lastMessage) {
         // Don't mark as unread if:
@@ -387,6 +392,52 @@ const markRoomAsRead = async (req, res) => {
   }
 };
 
+// @desc    Pin/Unpin room
+// @route   POST /api/rooms/:id/pin
+// @access  Private
+const togglePinRoom = async (req, res) => {
+  try {
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id);
+    const roomId = req.params.id;
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if room is already pinned
+    const isPinned = user.pinnedRooms.includes(roomId);
+
+    if (isPinned) {
+      // Unpin
+      user.pinnedRooms = user.pinnedRooms.filter(
+        (id) => id.toString() !== roomId
+      );
+    } else {
+      // Pin
+      user.pinnedRooms.push(roomId);
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: isPinned ? 'Room unpinned' : 'Room pinned',
+      data: {
+        isPinned: !isPinned,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getRooms,
   getRoom,
@@ -396,4 +447,5 @@ module.exports = {
   getRoomMessages,
   deleteRoom,
   markRoomAsRead,
+  togglePinRoom,
 };

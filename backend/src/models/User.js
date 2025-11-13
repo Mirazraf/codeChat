@@ -136,6 +136,10 @@ const userSchema = new mongoose.Schema(
         default: Date.now,
       },
     }],
+    pinnedRooms: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Room',
+    }],
     
     // PRIVACY SETTINGS
     privacySettings: {

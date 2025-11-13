@@ -94,26 +94,66 @@ const useChatStore = create((set, get) => ({
     }
     
     try {
-      const messagesData = await roomService.getRoomMessages(room._id);
+      // Fetch full room details with populated members
+      const roomData = await roomService.getRoom(room._id);
+      
+      // Check if user is a member
+      const isMember = roomData.data.members.some(member => member._id === userId);
+      
+      // Set current room (messages will be fetched only if user is a member)
       set({
-        currentRoom: room,
-        messages: messagesData.data,
+        currentRoom: roomData.data,
+        messages: [], // Clear messages initially
         typingUsers: [],
         replyingTo: null,
       });
-      socketService.joinRoom(room._id, userId);
       
-      // Mark room as read
-      await roomService.markRoomAsRead(room._id);
-      
-      // Update rooms list to reflect read status
-      set((state) => ({
-        rooms: state.rooms.map((r) =>
-          r._id === room._id ? { ...r, hasUnread: false } : r
-        ),
-      }));
+      // Only fetch messages and join socket if user is a member
+      if (isMember) {
+        const messagesData = await roomService.getRoomMessages(room._id);
+        set({ messages: messagesData.data });
+        socketService.joinRoom(room._id, userId);
+        
+        // Mark room as read
+        await roomService.markRoomAsRead(room._id);
+        
+        // Update rooms list to reflect read status
+        set((state) => ({
+          rooms: state.rooms.map((r) =>
+            r._id === room._id ? { ...r, hasUnread: false } : r
+          ),
+        }));
+      }
     } catch (error) {
       console.error('Error setting current room:', error);
+    }
+  },
+
+  // Join a room and fetch messages
+  joinRoomAndFetchMessages: async (roomId, userId) => {
+    try {
+      // Join the room
+      const joinResponse = await roomService.joinRoom(roomId);
+      
+      // Fetch messages
+      const messagesData = await roomService.getRoomMessages(roomId);
+      
+      // Update current room with new member list and messages
+      set({
+        currentRoom: joinResponse.data,
+        messages: messagesData.data,
+      });
+      
+      // Join socket room
+      socketService.joinRoom(roomId, userId);
+      
+      // Mark room as read
+      await roomService.markRoomAsRead(roomId);
+      
+      return joinResponse;
+    } catch (error) {
+      console.error('Error joining room:', error);
+      throw error;
     }
   },
 
@@ -214,17 +254,25 @@ const useChatStore = create((set, get) => ({
       // Check if message is from current user
       const isOwnMessage = updatedRoom.lastMessage?.sender?._id === currentUserId;
       
-      // Calculate hasUnread
+      // Find existing room to preserve its properties
+      const existingRoom = state.rooms.find(r => r._id === updatedRoom._id);
+      
+      // Calculate hasUnread for the updated room
+      // Keep existing hasUnread if it's true, or set new value
+      const shouldBeUnread = updatedRoom._id !== state.currentRoom?._id && !isOwnMessage;
+      const hasUnread = existingRoom?.hasUnread || shouldBeUnread;
+      
+      // Preserve isPinned status from existing room (user-specific, not from backend)
       const roomWithUnread = {
         ...updatedRoom,
-        hasUnread: updatedRoom._id !== state.currentRoom?._id && !isOwnMessage,
+        hasUnread: hasUnread,
+        isPinned: existingRoom?.isPinned || updatedRoom.isPinned || false,
       };
       
-      // Update or add the room
-      const roomExists = state.rooms.find(r => r._id === updatedRoom._id);
+      // Update or add the room, preserving properties for other rooms
       let updatedRooms;
       
-      if (roomExists) {
+      if (existingRoom) {
         updatedRooms = state.rooms.map(r => 
           r._id === updatedRoom._id ? roomWithUnread : r
         );

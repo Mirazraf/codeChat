@@ -42,4 +42,9 @@ export const roomService = {
     const response = await api.post(`/rooms/${roomId}/read`);
     return response.data;
   },
+
+  togglePinRoom: async (roomId) => {
+    const response = await api.post(`/rooms/${roomId}/pin`);
+    return response.data;
+  },
 };
